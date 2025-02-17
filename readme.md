@@ -107,13 +107,13 @@ The SmartFarm project tracks agricultural devices, sensor readings, crop managem
      ```
      This command builds and starts the containers:
      - User Service on port 8005
-     - Device Service on port 8000
+     - Device Service on port 8001
      - Mosquitto (MQTT broker)
      - InfluxDB
      - PostgreSQL for the user service
 
 ## Docker Compose
-The [docker-compose.yaml](http://_vscodecontentref_/0) file orchestrates the various services with these key details:
+The `docker-compose.yaml` file orchestrates the various services with these key details:
 - **Volumes:** Persistent data mounting for Mosquitto, InfluxDB, and PostgreSQL.
 - **Service Dependencies:** Device Service depends on User Service.
 - **Ports:** Exposed ports allow inter-service communication and external API access.
