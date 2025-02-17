@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from starlette import status
 from ..models import Devices, Sensors, Farms
 from datetime import datetime, timezone
-from ..utils import login_via_token
+from ..utils import login_via_token, BaseService
 
 
 router = APIRouter(
@@ -49,11 +49,8 @@ class UpdateDeviceInfo(BaseModel):
     status: str
 
 
-class DeviceService:
-    def __init__(self, db: Session):
-        self.db = db
-
-    def get_device(self, device_id: str):
+class DeviceService(BaseService):
+    def get(self, device_id: str):
         device = self.db.query(Devices).filter_by(
             unique_device_id=device_id).first()
         if not device:
@@ -61,12 +58,7 @@ class DeviceService:
                 status_code=status.HTTP_404_NOT_FOUND, detail='Device not found')
         return device
 
-    def check_access(self, device: Devices, user_id: str):
-        if device.user_id != user_id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN, detail='No access to this device!')
-
-    def create_new_device(self, user_id: int, device_data: AddNewDevice):
+    def create(self, user_id: int, device_data: AddNewDevice):
         existing_device = self.db.query(Devices).filter_by(
             unique_device_id=device_data.unique_device_id).first()
         if existing_device:
@@ -82,10 +74,8 @@ class DeviceService:
             firmware_version=device_data.firmware_version,
             status='inactive'
         )
-
         try:
             self.db.add(device_entity)
-            # Если unique_device_id внешний — flush не нужен, убрал
             sensor_entities = [
                 Sensors(
                     device_id=device_entity.unique_device_id,
@@ -111,17 +101,8 @@ class DeviceService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Unexpected error: {str(e)}"
             )
-
         return device_entity
 
-    def update_status(self, device: Devices, new_status: str):
-        device.status = new_status
-        self.db.commit()
-        return device
-
-    def delete_device(self, device: Devices):
-        self.db.delete(device)
-        self.db.commit()
 
 
 @router.post('/device', status_code=status.HTTP_201_CREATED,)
@@ -180,7 +161,7 @@ async def farm_devices(db: db_dependency,  farm_id: str = Path(max_length=100), 
     if farm_entity is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail='Farm does not exist!')
-    if farm_entity.owner_id != user_entity.get('id'):
+    if farm_entity.user_id != user_entity.get('id'):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail='No access to this device!'
@@ -201,13 +182,13 @@ async def assign_device(
             status_code=status.HTTP_404_NOT_FOUND, detail='Farm does not exist!')
     user_info = await login_via_token(token)
     user_id = user_info.get('id')
-    if farm_entity.owner_id != user_info.get('id'):
+    if farm_entity.user_id != user_info.get('id'):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail='No access to this farm!'
         )
     device_service = DeviceService(db)
-    device_entity = device_service.get_device(device_id)
+    device_entity = device_service.get(device_id)
     device_service.check_access(device_entity, user_id)
     device_entity.farm_id = farm_entity.farm_id
     db.commit()
@@ -219,9 +200,9 @@ async def update_device_info(db: db_dependency, token: str = Query(max_length=25
     user_info = await login_via_token(token)
     user_id = user_info.get('id')
     device_service = DeviceService(db)
-    device_entity = device_service.get_device(device_id)
+    device_entity = device_service.get(device_id)
     device_service.check_access(device_entity, user_id)
-    device_service.update_status(device_entity, new_status)
+    device_service.update(device_entity, new_status)
 
 
 @router.delete('/device/{device_id}', status_code=status.HTTP_204_NO_CONTENT)
@@ -229,9 +210,9 @@ async def delete_device(db: db_dependency, token: str = Query(max_length=250),  
     user_info = await login_via_token(token)
     user_id = user_info.get('id')
     device_service = DeviceService(db)
-    device_entity = device_service.get_device(device_id)
+    device_entity = device_service.get(device_id)
     device_service.check_access(device_entity, user_id)
-    device_service.delete_device(device_entity)
+    device_service.delete(device_entity)
 
 
 @router.post('/upload_firmware/{device_id}', status_code=status.HTTP_200_OK)
@@ -242,7 +223,7 @@ async def device_firmware_update(db: db_dependency,
     user_info = await login_via_token(token)
     user_id = user_info.get('id')
     device_service = DeviceService(db)
-    device_entity = device_service.get_device(device_id)
+    device_entity = device_service.get(device_id)
     device_service.check_access(device_entity, user_id)
     try:
         firmware = await file.read()

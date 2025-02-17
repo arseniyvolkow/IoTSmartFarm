@@ -4,7 +4,7 @@ from ..database import SessionLocal
 from sqlalchemy.orm import Session
 from typing import Annotated, Optional
 from pydantic import BaseModel
-from ..utils import login_via_token
+from ..utils import login_via_token, BaseService
 from ..models import Farms, CropManagement
 from datetime import date
 
@@ -41,7 +41,7 @@ async def add_new_farm(db: db_dependency, farm_request: FarmModel, token: str = 
     farm_entity = Farms(
         farm_name=farm_request.farm_name,
         total_area=farm_request.total_area,
-        owner_id=user_entity.get('id'),
+        user_id=user_entity.get('id'),
         location=farm_request.location,
     )
     db.add(farm_entity)
@@ -53,20 +53,17 @@ async def get_all_farms(db: db_dependency, token: str = Header(max_length=250)):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail='Invalid token or user not found')
     all_farms = db.query(Farms).filter(
-        Farms.owner_id == user_entity.get('id')).all()
+        Farms.user_id == user_entity.get('id')).all()
     return all_farms
 
 @router.get('/farm/{farm_id}')
 async def get_farm_by_id(db: db_dependency, token: str = Header(max_length=250), farm_id: str = Path(max_length=100)):
     user_entity = await login_via_token(token)
-    print("User entity:", user_entity)  
     farm_entity = db.query(Farms).filter_by(farm_id=farm_id).first()
-    print("Farm owner_id:", farm_entity.owner_id, type(farm_entity.owner_id))
-    print("User entity id:", user_entity.get('id'), type(user_entity.get('id')))
     if farm_entity is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail='Farm does not exist!')
-    if farm_entity.owner_id != str(user_entity.get('id')):
+    if farm_entity.user_id != str(user_entity.get('id')):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail='No access!')
     return farm_entity
@@ -79,7 +76,7 @@ async def update_farm_info(db: db_dependency, farm_request: FarmModel, token: st
     if farm_entity is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail='Farm does not exist!')
-    if farm_entity.owner_id != user_entity.get('id'):
+    if farm_entity.user_id != user_entity.get('id'):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail='No access!')
     farm_entity.farm_name = farm_request.farm_name
@@ -98,7 +95,7 @@ async def assing_crop_to_farm(db: db_dependency, farm_id: str = Path(max_length=
             status_code=status.HTTP_404_NOT_FOUND, detail='Farm does not exist!')
     crop_entity = db.query(CropManagement).filter_by(crop_id=crop_id).first()
     user_entity = await login_via_token(token)
-    if crop_entity.owner_id != user_entity.get('id') or crop_entity.owner_id != farm_entity.owner_id:
+    if crop_entity.user_id != user_entity.get('id') or crop_entity.user_id != farm_entity.user_id:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail='No access!')
     farm_entity.crop = crop_entity.crop_id
@@ -113,7 +110,7 @@ async def delete_farm(db: db_dependency, farm_id: str = Path(max_length=100), to
     if farm_entity is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail='Farm does not exist!')
-    if farm_entity.owner_id != user_entity.get('id'):
+    if farm_entity.user_id != user_entity.get('id'):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail='No access!')
     db.delete(farm_entity)
@@ -122,30 +119,18 @@ async def delete_farm(db: db_dependency, farm_id: str = Path(max_length=100), to
 
 
 
-class FarmService:
-    def __init__(self, db: Session):
-        self.db = db
+class FarmService(BaseService):
 
-
-    def new_farm(self, farm: FarmModel):
+    def create(self, farm: FarmModel):
         pass
-
     
-    def get_farm(self, farm_id):
+    def get(self, farm_id):
         farm_entity = self.db.query(Farms).filter_by(farm_id=farm_id).first()
         if not farm_entity:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail='Farm not found')
         return farm_entity
     
-    def check_access(self, farm: Farms, user_id):
-        if farm.owner_id != user_id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN, detail='No access to this farm!')
-        
-    def delete_farm(self, farm: Farms, user_id):
-        pass
 
-    def update_farm(self, farm: Farms, user_id):
-        pass
 
+    

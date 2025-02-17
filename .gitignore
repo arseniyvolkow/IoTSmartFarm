@@ -177,6 +177,5 @@ sensors.db
 mosquitto
 influxdb
 
-
-postgresql
+postgresql_device_database
 postgresql_user_database

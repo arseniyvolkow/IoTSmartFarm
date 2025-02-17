@@ -22,7 +22,7 @@ class Farms(Base):
     farm_id = Column(String, primary_key=True, default=generate_uuid)
     farm_name = Column(String)
     total_area = Column(Integer)
-    owner_id = Column(String)
+    user_id = Column(String)
     location = Column(String)
     crop = Column(String, ForeignKey('CropManagement.crop_id'))
 
@@ -35,7 +35,7 @@ class CropManagement(Base):
 
     crop_id = Column(String, primary_key=True, default=generate_uuid)
     planting_date = Column(Date)
-    owner_id = Column(String)
+    user_id = Column(String)
     expected_harvest_date = Column(Date)
     current_grow_stage = Column(String)
     crop_type_id = Column(String, ForeignKey('crops.crop_id'))

@@ -41,10 +41,10 @@ async def add_new_crop(db: db_dependency, crop: CropModel, token: str = Query(ma
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail='Farm does not exist!')
     user_entity = await login_via_token(token)
-    if  farm_entity.owner_id != user_entity.get('id'):
+    if  farm_entity.user_id != user_entity.get('id'):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail='No access!')
-    crop_entity = CropManagement(**crop.model_dump(), owner_id = user_entity.get('id')
+    crop_entity = CropManagement(**crop.model_dump(), user_id = user_entity.get('id')
     )
     db.add(crop_entity)
     db.commit()
@@ -57,7 +57,7 @@ async def get_info_about_crop(db: db_dependency, crop_id: str = Path(max_length=
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail='Crop does not exist!')
     user_entity = await login_via_token(token)
-    if crop_info.owner_id != user_entity.get('id'):
+    if crop_info.user_id != user_entity.get('id'):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail='No access!')
     return crop_info
