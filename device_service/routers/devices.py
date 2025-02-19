@@ -58,7 +58,7 @@ class DeviceService(BaseService):
                 status_code=status.HTTP_404_NOT_FOUND, detail='Device not found')
         return device
 
-    def create(self, user_id: int, device_data: AddNewDevice):
+    def create(self, user_id, device_data: AddNewDevice):
         existing_device = self.db.query(Devices).filter_by(
             unique_device_id=device_data.unique_device_id).first()
         if existing_device:
