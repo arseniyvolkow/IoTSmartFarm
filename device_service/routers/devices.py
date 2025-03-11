@@ -49,6 +49,21 @@ class UpdateDeviceInfo(BaseModel):
     status: str
 
 
+class DeviceSchema(BaseModel):
+    unique_device_id: str
+    user_id: int
+    farm_id: str
+    device_ip_address: str
+    model_number: str
+    firmware_version: str
+    status: str
+
+
+class CursorPagination(BaseModel):
+    items: list[DeviceSchema]
+    next_cursor: Optional[str] = None
+
+
 class DeviceService(BaseService):
     def get(self, device_id: str):
         device = self.db.query(Devices).filter_by(
@@ -69,7 +84,6 @@ class DeviceService(BaseService):
             unique_device_id=device_data.unique_device_id,
             user_id=user_id,
             device_ip_address=device_data.device_ip_address,
-            installation_date=datetime.now(timezone.utc),
             model_number=device_data.model_number,
             firmware_version=device_data.firmware_version,
             status='inactive'
@@ -105,6 +119,7 @@ class DeviceService(BaseService):
 
 
 
+
 @router.post('/device', status_code=status.HTTP_201_CREATED,)
 async def new_device(db: db_dependency, device_data: AddNewDevice):
     async with httpx.AsyncClient() as client:
@@ -136,26 +151,49 @@ async def new_device(db: db_dependency, device_data: AddNewDevice):
             }
 
 
-@router.get('/unsigned-devices', status_code=status.HTTP_200_OK)
-async def unsigned_sensor(db: db_dependency, token: str = Query(max_length=250)):
-
+@router.get('/unsigned-devices', status_code=status.HTTP_200_OK, response_model=CursorPagination)
+async def unsigned_sensor(
+    db: db_dependency,
+    sort_column: str,
+    cursor: Optional[str] = Query(None),
+    limit: Optional[int] = Query(10, ge=10, le=200),
+    token: str = Query(max_length=250)):
     user_info = await login_via_token(token)
     user_id = user_info.get('id')
     uassigned_devices = db.query(Devices).filter(
         Devices.user_id == user_id).filter(Devices.farm_id.is_(None)).all()
-    return uassigned_devices
+    device_service = DeviceService(db)
+    items, next_cursor = device_service.cursor_paginate(uassigned_devices,sort_column, cursor, limit)
+    return {
+        'items': items,
+        'next_cursor': next_cursor
+    }
 
 
 @router.get('/all-devices', status_code=status.HTTP_200_OK)
-async def all_devices(db: db_dependency, token: str = Query(max_length=250)):
+async def all_devices(db: db_dependency,
+    sort_column: str,
+    cursor: Optional[str] = Query(None),
+    limit: Optional[int] = Query(10, ge=10, le=200),
+    token: str = Query(max_length=250)):
     user_entity = await login_via_token(token)
     all_device = db.query(Devices).filter_by(
         user_id=user_entity.get('id')).all()
-    return all_device
+    device_service = DeviceService(db)
+    items, next_cursor = device_service.cursor_paginate(all_device,sort_column, cursor, limit)
+    return {
+        'items': items,
+        'next_cursor': next_cursor
+    }
 
 
 @router.get('/all-devices/{farm_id}', status_code=status.HTTP_200_OK)
-async def farm_devices(db: db_dependency,  farm_id: str = Path(max_length=100), token: str = Query(max_length=250)):
+async def farm_devices(db: db_dependency,
+    sort_column: str,
+    farm_id: str = Path(max_length=100),
+    cursor: Optional[str] = Query(None),
+    limit: Optional[int] = Query(10, ge=10, le=200),
+    token: str = Query(max_length=250)):
     user_entity = await login_via_token(token)
     farm_entity = db.query(Farms).filter_by(farm_id=farm_id).first()
     if farm_entity is None:
@@ -167,7 +205,12 @@ async def farm_devices(db: db_dependency,  farm_id: str = Path(max_length=100), 
             detail='No access to this device!'
         )
     farm_devices = db.query(Devices).filter_by(farm_id=farm_entity.farm_id)
-    return farm_devices
+    device_service = DeviceService(db)
+    items, next_cursor = device_service.cursor_paginate(farm_devices,sort_column, cursor, limit)
+    return {
+        'items': items,
+        'next_cursor': next_cursor
+    }
 
 
 @router.patch('/assign-device-to-farm', status_code=status.HTTP_200_OK)
@@ -203,6 +246,7 @@ async def update_device_info(db: db_dependency, token: str = Query(max_length=25
     device_entity = device_service.get(device_id)
     device_service.check_access(device_entity, user_id)
     device_service.update(device_entity, new_status)
+    re
 
 
 @router.delete('/device/{device_id}', status_code=status.HTTP_204_NO_CONTENT)

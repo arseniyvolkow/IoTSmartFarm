@@ -1,42 +1,60 @@
 version: '3'
 services:
+  traefik:
+    image: traefik:v2.10
+    container_name: traefik
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--entrypoints.web.address=:80"
+    ports:
+      - "80:80"
+      - "8080:8080"  # Dashboard access
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+    restart: unless-stopped
+
   user_service:
     build:
       context: ./user_service
       dockerfile: Dockerfile.user_service
-    ports:
-      - "8005:8005"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.user.rule=PathPrefix(`/api/user-service`)"
+      - "traefik.http.services.user.loadbalancer.server.port=8005"
     depends_on:
       - postgresql_user_service
     env_file: ".env"
+    restart: unless-stopped
 
   device_service:
     build:
       context: ./device_service
       dockerfile: Dockerfile.device_service
-    ports:
-      - "8001:8000"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.device.rule=PathPrefix(`/api/device-service`)"
+      - "traefik.http.services.device.loadbalancer.server.port=8000"
     depends_on:
       - user_service
       - postgresql_device_service
-    environment:
-      - POSTGRES_DEVICE_DATABASE_USERNAME=${POSTGRES_DEVICE_DATABASE_USERNAME}
-      - POSTGRES_DEVICE_DATABASE_PASSWORD=${POSTGRES_DEVICE_DATABASE_PASSWORD}
-      - POSTGRES_DEVICE_DATABASE_NAME=${POSTGRES_DEVICE_DATABASE_NAME}
-      - POSTGRES_DEVICE_DATABASE_HOST=${POSTGRES_DEVICE_DATABASE_HOST}
     env_file: ".env"
-  
+    restart: unless-stopped
+
   sensor_data_service:
     build: 
       context: ./sensor_data_service
       dockerfile: Dockerfile.sensor_data_service
-    ports:
-      - "8006:8006"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.sensor.rule=PathPrefix(`/api/sensor-data`)"
+      - "traefik.http.services.sensor.loadbalancer.server.port=8006"
     depends_on:
       - mosquitto
       - influxdb
     env_file:
       - ".env"
+    restart: unless-stopped
 
   mosquitto:
     image: eclipse-mosquitto
@@ -48,6 +66,7 @@ services:
       - C:/Users/arsen/Documents/SmartFarm/mosquitto/log:/mosquitto/log
       - C:/Users/arsen/Documents/SmartFarm/mosquitto/certs:/mosquitto/certs
     env_file: ".env"
+    restart: unless-stopped
 
   influxdb:
     image: influxdb:2
@@ -57,6 +76,7 @@ services:
       - C:/Users/arsen/Documents/SmartFarm/influxdb/data:/var/lib/influxdb2
       - C:/Users/arsen/Documents/SmartFarm/influxdb/config:/etc/influxdb2
     env_file: ".env"
+    restart: unless-stopped
 
   postgresql_user_service:
     image: postgres
@@ -64,6 +84,7 @@ services:
       - "5433:5432"
     volumes:
       - C:/Users/arsen/Documents/SmartFarm/postgresql_device_database/data:/var/lib/postgresql/data
+    restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER_DATABASE_USERNAME}
       POSTGRES_PASSWORD: ${POSTGRES_USER_DATABASE_PASSWORD}
@@ -73,6 +94,7 @@ services:
     image: postgres
     ports:
       - "5434:5432"
+    restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_DEVICE_DATABASE_USERNAME}
       POSTGRES_PASSWORD: ${POSTGRES_DEVICE_DATABASE_PASSWORD}

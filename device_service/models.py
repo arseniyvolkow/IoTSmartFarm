@@ -1,7 +1,9 @@
 from .database import Base
 from sqlalchemy.orm import relationship
-from sqlalchemy import Column, Enum, Integer, Float,Date, String, ForeignKey
+from sqlalchemy import Column, Enum, Integer, Float,Date, String, ForeignKey, DateTime
 import uuid
+from sqlalchemy.sql import func
+
 
 def generate_uuid():
     return str(uuid.uuid4())
@@ -12,7 +14,7 @@ class Crops(Base):
 
     crop_id = Column(String, primary_key=True, default=generate_uuid)
     crop_name = Column(String, unique=True)
-
+    created_at = Column(DateTime(timezone=True),server_default=func.now())
     crop_management_entries = relationship("Crop_managment", back_populates="crop_type")
     
 
@@ -25,7 +27,8 @@ class Farms(Base):
     user_id = Column(String)
     location = Column(String)
     crop = Column(String, ForeignKey('CropManagement.crop_id'))
-
+    created_at = Column(DateTime(timezone=True),server_default=func.now())
+    
     devices = relationship("Devices", back_populates="farm")
     crop_managment = relationship("Crop_managment", back_populates="farm")
     
@@ -39,6 +42,7 @@ class CropManagement(Base):
     expected_harvest_date = Column(Date)
     current_grow_stage = Column(String)
     crop_type_id = Column(String, ForeignKey('crops.crop_id'))
+    created_at = Column(DateTime(timezone=True),server_default=func.now())
 
     crop_type = relationship("Crops", back_populates="crop_management_entries") 
     farm = relationship("Farms", back_populates="CropManagement")
@@ -51,7 +55,7 @@ class Devices(Base):
     device_ip_address = Column(String)
     user_id = Column(String)
     farm_id = Column(String,ForeignKey('farms.farm_id'))
-    installation_date = Column(Date)
+    created_at = Column(DateTime(timezone=True),server_default=func.now())
     model_number = Column(String)
     firmware_version = Column(String)
     status = Column(Enum('active', 'inactive', 'maintenance', name='device_status'), default='active')
@@ -68,6 +72,7 @@ class Sensors(Base):
     units_of_measure = Column(String)
     max_value = Column(Float)
     min_value = Column(Float)
+    created_at = Column(DateTime(timezone=True),server_default=func.now())
 
     device = relationship("Devices", back_populates="sensors")
 
@@ -78,3 +83,4 @@ class Alerts(Base):
     farm_id = Column(String, ForeignKey('farms.farm_id'))
     device_id = Column(String, ForeignKey('devices.unique_device_id'))
     alert_type = Column(String)
+    created_at = Column(DateTime(timezone=True),server_default=func.now())

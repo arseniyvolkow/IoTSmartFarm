@@ -60,7 +60,7 @@ async def lifespan(app: FastAPI):
 
 
 # FastAPI application
-app = FastAPI(lifespan=lifespan)
+app = FastAPI(lifespan=lifespan, root_path='/api/sensor-data')
 # Instantiate services
 
 

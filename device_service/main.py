@@ -5,7 +5,7 @@ from .database import engine
 from .routers import devices, farms, crops
 
 
-app = FastAPI()
+app = FastAPI(root_path='/api/device-service')
 
 Base.metadata.create_all(bind=engine)
 

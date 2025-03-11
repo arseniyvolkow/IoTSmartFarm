@@ -4,7 +4,7 @@ from .models import Base
 from .routers import auth, user, admin
 
 
-app = FastAPI()
+app = FastAPI(root_path='/api/user-service')
 
 Base.metadata.create_all(bind=engine)
 

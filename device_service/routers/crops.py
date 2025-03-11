@@ -102,6 +102,12 @@ async def new_crop_type(db: db_dependency, token: str = Query(max_length=250), c
 
 
 @router.get('/type', status_code=status.HTTP_200_OK)
-async def all_crop_types(db: db_dependency):
+async def all_crop_types(db: db_dependency, 
+    sort_column: str,
+    cursor: Optional[str] = Query(None),
+    limit: Optional[int] = Query(10, ge=10, le=200)):
     crop_type_entitys = db.query(Crops).all()
-    return crop_type_entitys
+    crop_service = CropService(db)
+    items, next_cursor = crop_service.cursor_paginate(crop_type_entitys, sort_column, cursor, limit)
+    return {'items': items,
+            'next_cursor': next_cursor}

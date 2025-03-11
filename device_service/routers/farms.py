@@ -54,7 +54,7 @@ class FarmService(BaseService):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail='Farm not found')
         return farm_entity
-
+    
 
 @router.post('/farm', status_code=status.HTTP_201_CREATED)
 async def add_new_farm(db: db_dependency, farm: FarmModel, token: str = Header(max_length=250)):
@@ -65,14 +65,21 @@ async def add_new_farm(db: db_dependency, farm: FarmModel, token: str = Header(m
     return {'message': 'Farm added successfully'}
 
 
-async def get_all_farms(db: db_dependency, token: str = Header(max_length=250)):
+async def get_all_farms(db: db_dependency,
+                        sort_column: str,
+                        cursor: Optional[str] = Query(None),
+                        limit: Optional[int] = Query(10, ge=10, le=200),
+                        token: str = Header(max_length=250)):
     user_entity = await login_via_token(token)
     if not user_entity or 'id' not in user_entity:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail='Invalid token or user not found')
     all_farms = db.query(Farms).filter(
         Farms.user_id == user_entity.get('id')).all()
-    return all_farms
+    farm_service = FarmService(db)
+    items, next_cursor = farm_service.cursor_paginate(all_farms,sort_column, cursor, limit)
+    return {'items': items,
+            'next_cursor': next_cursor}
 
 
 @router.get('/farm/{farm_id}')
