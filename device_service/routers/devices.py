@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Path, UploadFile, File
-from ..database import SessionLocal
+from ..database import get_db
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from typing import Annotated, Optional
@@ -9,20 +9,11 @@ from starlette import status
 from ..models import Devices, Sensors, Farms
 from datetime import datetime, timezone
 from ..utils import login_via_token, BaseService
-
-
+from sqlalchemy import select
 router = APIRouter(
     prefix='/devices',
     tags=['Devices']
 )
-
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 
 db_dependency = Annotated[Session, Depends(get_db)]
@@ -65,21 +56,33 @@ class CursorPagination(BaseModel):
 
 
 class DeviceService(BaseService):
-    def get(self, device_id: str):
-        device = self.db.query(Devices).filter_by(
-            unique_device_id=device_id).first()
+    """
+    A service class for managing device-related operations.
+
+    Methods:
+        get(device_id: str):
+            Retrieves a device by its unique ID.
+        create(user_id: int, device_data: AddNewDevice):
+            Creates a new device and its associated sensors.
+    """
+    async def get(self, device_id: str):
+        query = select(Devices).filter(
+            Devices.unique_device_id == device_id)
+        result = await self.db.execute(query)
+        device = result.scalar_one_or_none()
         if not device:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail='Device not found')
         return device
 
-    def create(self, user_id, device_data: AddNewDevice):
-        existing_device = self.db.query(Devices).filter_by(
-            unique_device_id=device_data.unique_device_id).first()
+    async def create(self, user_id, device_data: AddNewDevice):
+        query = select(Devices).filter(
+            Devices.unique_device_id == device_data.unique_device_id)
+        result = await self.db.execute(query)
+        existing_device = result.scalar_one_or_none()
         if existing_device:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST, detail="Device already exists!")
-
         device_entity = Devices(
             unique_device_id=device_data.unique_device_id,
             user_id=user_id,
@@ -90,6 +93,7 @@ class DeviceService(BaseService):
         )
         try:
             self.db.add(device_entity)
+            await self.db.flush()
             sensor_entities = [
                 Sensors(
                     device_id=device_entity.unique_device_id,
@@ -102,22 +106,20 @@ class DeviceService(BaseService):
             ]
 
             self.db.bulk_save_objects(sensor_entities)
-            self.db.commit()
+            await self.db.commit()
         except IntegrityError:
-            self.db.rollback()
+            await self.db.rollback()
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Device with this unique ID already exists (DB constraint error)."
             )
         except Exception as e:
-            self.db.rollback()
+            await self.db.rollback()
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Unexpected error: {str(e)}"
             )
         return device_entity
-
-
 
 
 @router.post('/device', status_code=status.HTTP_201_CREATED,)
@@ -140,7 +142,7 @@ async def new_device(db: db_dependency, device_data: AddNewDevice):
 
             device_service = DeviceService(db)
 
-            device_entity = device_service.create_new_device(
+            device_entity = await device_service.create(
                 user_id, device_data)
             return {"status": "success", "device_id": device_entity.unique_device_id}
 
@@ -153,17 +155,19 @@ async def new_device(db: db_dependency, device_data: AddNewDevice):
 
 @router.get('/unsigned-devices', status_code=status.HTTP_200_OK, response_model=CursorPagination)
 async def unsigned_sensor(
-    db: db_dependency,
-    sort_column: str,
-    cursor: Optional[str] = Query(None),
-    limit: Optional[int] = Query(10, ge=10, le=200),
-    token: str = Query(max_length=250)):
+        db: db_dependency,
+        sort_column: str,
+        cursor: Optional[str] = Query(None),
+        limit: Optional[int] = Query(10, ge=10, le=200),
+        token: str = Query(max_length=250)):
     user_info = await login_via_token(token)
     user_id = user_info.get('id')
-    uassigned_devices = db.query(Devices).filter(
-        Devices.user_id == user_id).filter(Devices.farm_id.is_(None)).all()
+    query = select(Devices).filter(
+        Devices.user_id == user_id,
+        Devices.farm_id.is_(None)
+    )
     device_service = DeviceService(db)
-    items, next_cursor = device_service.cursor_paginate(uassigned_devices,sort_column, cursor, limit)
+    items, next_cursor = await device_service.cursor_paginate(db, query, sort_column, cursor, limit)
     return {
         'items': items,
         'next_cursor': next_cursor
@@ -172,15 +176,15 @@ async def unsigned_sensor(
 
 @router.get('/all-devices', status_code=status.HTTP_200_OK)
 async def all_devices(db: db_dependency,
-    sort_column: str,
-    cursor: Optional[str] = Query(None),
-    limit: Optional[int] = Query(10, ge=10, le=200),
-    token: str = Query(max_length=250)):
+                      sort_column: str,
+                      cursor: Optional[str] = Query(None),
+                      limit: Optional[int] = Query(10, ge=10, le=200),
+                      token: str = Query(max_length=250)):
     user_entity = await login_via_token(token)
-    all_device = db.query(Devices).filter_by(
-        user_id=user_entity.get('id')).all()
+    query = select(Devices).filter(
+        Devices.user_id == user_entity.get('id'))
     device_service = DeviceService(db)
-    items, next_cursor = device_service.cursor_paginate(all_device,sort_column, cursor, limit)
+    items, next_cursor = await device_service.cursor_paginate(db, query, sort_column, cursor, limit)
     return {
         'items': items,
         'next_cursor': next_cursor
@@ -189,13 +193,15 @@ async def all_devices(db: db_dependency,
 
 @router.get('/all-devices/{farm_id}', status_code=status.HTTP_200_OK)
 async def farm_devices(db: db_dependency,
-    sort_column: str,
-    farm_id: str = Path(max_length=100),
-    cursor: Optional[str] = Query(None),
-    limit: Optional[int] = Query(10, ge=10, le=200),
-    token: str = Query(max_length=250)):
+                       sort_column: str,
+                       farm_id: str = Path(max_length=100),
+                       cursor: Optional[str] = Query(None),
+                       limit: Optional[int] = Query(10, ge=10, le=200),
+                       token: str = Query(max_length=250)):
     user_entity = await login_via_token(token)
-    farm_entity = db.query(Farms).filter_by(farm_id=farm_id).first()
+    farm_query = select(Farms).filter(Farms.farm_id == farm_id).first()
+    farm_result = await db.execute(farm_query)
+    farm_entity = farm_result.scalar_one_or_none()
     if farm_entity is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail='Farm does not exist!')
@@ -204,9 +210,9 @@ async def farm_devices(db: db_dependency,
             status_code=status.HTTP_403_FORBIDDEN,
             detail='No access to this device!'
         )
-    farm_devices = db.query(Devices).filter_by(farm_id=farm_entity.farm_id)
+    query = select(Devices).filter(Devices.farm_id == farm_entity.farm_id)
     device_service = DeviceService(db)
-    items, next_cursor = device_service.cursor_paginate(farm_devices,sort_column, cursor, limit)
+    items, next_cursor = await device_service.cursor_paginate(db, query, sort_column, cursor, limit)
     return {
         'items': items,
         'next_cursor': next_cursor
@@ -218,8 +224,11 @@ async def assign_device(
         db: db_dependency,
         token: str = Query(max_length=250),
         device_id: str = Query(max_length=100),
-        farm: str = Query(max_length=100)):
-    farm_entity = db.query(Farms).filter_by(farm_id=farm).first()
+        farm_id: str = Query(max_length=100)):
+
+    farm_query = select(Farms).filter(Farms.farm_id == farm_id)
+    farm_result = await db.execute(farm_query)
+    farm_entity = farm_result.scalar_one_or_none()
     if farm_entity is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail='Farm does not exist!')
@@ -231,22 +240,22 @@ async def assign_device(
             detail='No access to this farm!'
         )
     device_service = DeviceService(db)
-    device_entity = device_service.get(device_id)
-    device_service.check_access(device_entity, user_id)
+    device_entity = await device_service.get(device_id)
+    await device_service.check_access(device_entity, user_id)
     device_entity.farm_id = farm_entity.farm_id
-    db.commit()
+    await db.commit()
     return {'details': 'Device assigned to farm!'}
 
 
 @router.patch('/device/{device_id}', status_code=status.HTTP_200_OK)
-async def update_device_info(db: db_dependency, token: str = Query(max_length=250), new_status: str = Query(max_length=15), device_id: str = Path(max_length=250)):
+async def update_device_info(db: db_dependency, token: str = Query(max_length=250), new_status: str = Query(max_length=15, regex="^(active|inactive|maintenance)$"), device_id: str = Path(max_length=250)):
     user_info = await login_via_token(token)
     user_id = user_info.get('id')
     device_service = DeviceService(db)
-    device_entity = device_service.get(device_id)
-    device_service.check_access(device_entity, user_id)
-    device_service.update(device_entity, new_status)
-    re
+    device_entity = await device_service.get(device_id)
+    await device_service.check_access(device_entity, user_id)
+    await device_service.update(device_entity, status=new_status)
+    return new_status
 
 
 @router.delete('/device/{device_id}', status_code=status.HTTP_204_NO_CONTENT)
@@ -254,9 +263,9 @@ async def delete_device(db: db_dependency, token: str = Query(max_length=250),  
     user_info = await login_via_token(token)
     user_id = user_info.get('id')
     device_service = DeviceService(db)
-    device_entity = device_service.get(device_id)
-    device_service.check_access(device_entity, user_id)
-    device_service.delete(device_entity)
+    device_entity = await device_service.get(device_id)
+    await device_service.check_access(device_entity, user_id)
+    await device_service.delete(device_entity)
 
 
 @router.post('/upload_firmware/{device_id}', status_code=status.HTTP_200_OK)
@@ -267,12 +276,17 @@ async def device_firmware_update(db: db_dependency,
     user_info = await login_via_token(token)
     user_id = user_info.get('id')
     device_service = DeviceService(db)
-    device_entity = device_service.get(device_id)
-    device_service.check_access(device_entity, user_id)
+    device_entity = await device_service.get(device_id)
+    await device_service.check_access(device_entity, user_id)
     try:
         firmware = await file.read()
         async with httpx.AsyncClient() as client:
             device_response = await client.post(url=f'http://{device_entity.device_ip_address}/update', files={'firmware': firmware})
+            if device_response.status_code != 200:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Firmware update failed with status code {device_response.status_code}: {device_response.text}"
+                )
         return {'status': 'success', 'device_response': device_response.text}
     except Exception as e:
         return {'status': 'error', 'detail': str(e)}

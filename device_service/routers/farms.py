@@ -1,13 +1,14 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Path, Header
 from starlette import status
-from ..database import SessionLocal
+from ..database import get_db
 from sqlalchemy.orm import Session
 from typing import Annotated, Optional
 from pydantic import BaseModel
 from ..utils import login_via_token, BaseService
-from ..models import Farms, CropManagement
+from ..models import Farms, CropManagment
 from datetime import date
 from .crops import CropService
+from sqlalchemy import select
 
 router = APIRouter(
     prefix='/farms',
@@ -15,18 +16,14 @@ router = APIRouter(
 )
 
 
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-
 db_dependency = Annotated[Session, Depends(get_db)]
 
 
 class FarmModel(BaseModel):
+    """
+    Represents the data model for a farm, including its name, total area, location, 
+    and an optional crop. Used for validating and transferring farm-related data.
+    """
     farm_name: str
     total_area: int
     location: str
@@ -34,7 +31,7 @@ class FarmModel(BaseModel):
 
 
 class FarmService(BaseService):
-    def create(self, farm: FarmModel, user_id):
+    async def create(self, farm: FarmModel, user_id):
         if user_id is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED, detail='Invalid token or user not found')
@@ -46,38 +43,40 @@ class FarmService(BaseService):
             location=farm.location,
         )
         self.db.add(farm_entity)
-        self.db.commit()
+        await self.db.commit()
 
-    def get(self, farm_id):
-        farm_entity = self.db.query(Farms).filter_by(farm_id=farm_id).first()
+    async def get(self, farm_id):
+        query = select(Farms).filter(Farms.farm_id == farm_id)
+        result = await self.db.execute(query)
+        farm_entity = result.scalar_one_or_none()
         if not farm_entity:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail='Farm not found')
         return farm_entity
-    
+
 
 @router.post('/farm', status_code=status.HTTP_201_CREATED)
 async def add_new_farm(db: db_dependency, farm: FarmModel, token: str = Header(max_length=250)):
     user_entity = await login_via_token(token)
     user_id = user_entity.get('id')
     farm_service = FarmService(db)
-    farm_service.create(farm, user_id)
+    await farm_service.create(farm, user_id)
     return {'message': 'Farm added successfully'}
 
 
 async def get_all_farms(db: db_dependency,
                         sort_column: str,
                         cursor: Optional[str] = Query(None),
-                        limit: Optional[int] = Query(10, ge=10, le=200),
+                        limit: Optional[int] = Query(10, le=200),
                         token: str = Header(max_length=250)):
     user_entity = await login_via_token(token)
     if not user_entity or 'id' not in user_entity:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail='Invalid token or user not found')
-    all_farms = db.query(Farms).filter(
-        Farms.user_id == user_entity.get('id')).all()
+    query = select(Farms).filter(
+        Farms.user_id == user_entity.get('id'))
     farm_service = FarmService(db)
-    items, next_cursor = farm_service.cursor_paginate(all_farms,sort_column, cursor, limit)
+    items, next_cursor = await farm_service.cursor_paginate(db, query, sort_column, cursor, limit)
     return {'items': items,
             'next_cursor': next_cursor}
 
@@ -87,32 +86,32 @@ async def get(db: db_dependency, token: str = Header(max_length=250), farm_id: s
     user_entity = await login_via_token(token)
     user_id = user_entity.get('id')
     farm_service = FarmService(db)
-    farm_entity = farm_service.get(farm_id)
-    farm_service.check_access(farm_entity, user_id)
+    farm_entity = await farm_service.get(farm_id)
+    await farm_service.check_access(farm_entity, user_id)
     return farm_entity
 
 
 @router.put('/farm/{farm_id}')
 async def update_farm_info(db: db_dependency, farm: FarmModel, token: str = Header(max_length=250), farm_id: str = Path(max_length=100)):
-    user_entity = await login_via_token(token)
     farm_service = FarmService(db)
     user_entity = await login_via_token(token)
-    farm_entity = farm_service.get(farm_id)
-    farm_service.update(farm_entity, farm)
+    user_id = user_entity.get('id')
+    farm_entity = await farm_service.get(farm_id)
+    await farm_service.update(farm_entity, **farm.dict())
     return {'details': f'Farm {farm_entity.farm_id} info was updated!'}
 
 
 @router.patch('/farm/{farm_id}', status_code=status.HTTP_200_OK)
-async def assing_crop_to_farm(db: db_dependency, farm_id: str = Path(max_length=100), crop_id: str = Query(max_length=100), token: str = Header(max_length=250)):
+async def assign_crop_to_farm(db: db_dependency, farm_id: str = Path(max_length=100), crop_id: str = Query(max_length=100), token: str = Header(max_length=250)):
     farm_service = FarmService(db)
-    farm_entity = farm_service.get(farm_id)
+    farm_entity = await farm_service.get(farm_id)
     user_entity = await login_via_token(token)
     user_id = user_entity.get('id')
-    farm_service.check_access(farm_entity, user_id)
+    await farm_service.check_access(farm_entity, user_id)
     crop_service = CropService(db)
-    crop_entity = crop_service.get(crop_id)
+    crop_entity = await crop_service.get(crop_id)
     farm_entity.crop_id = crop_entity.crop_id
-    db.commit()
+    await db.commit()
     return {'details': 'Crop assigned to farm!'}
 
 
@@ -121,7 +120,7 @@ async def delete_farm(db: db_dependency, farm_id: str = Path(max_length=100), to
     user_entity = await login_via_token(token)
     user_id = user_entity.get('id')
     farm_service = FarmService(db)
-    farm_entity = farm_service.get(farm_id)
-    farm_service.check_access(farm_entity, user_id)
-    farm_service.delete(farm_entity)
+    farm_entity = await farm_service.get(farm_id)
+    await farm_service.check_access(farm_entity, user_id)
+    await farm_service.delete(farm_entity)
     return {'details': f'Farm {farm_entity.farm_id} was deleted'}

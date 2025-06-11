@@ -2,8 +2,9 @@ from fastapi import HTTPException
 from starlette import status
 import httpx
 import abc
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
+
 
 async def login_via_token(token: str):
     headers = {
@@ -24,51 +25,50 @@ async def login_via_token(token: str):
 
 
 class BaseService(abc.ABC):
-    def __init__(self, db: Session):
-        self.db = db 
-    
-    def get(self):
+    def __init__(self, db: AsyncSession):
+        self.db = db
+
+    async def get(self):
         pass
 
-    def create(self):
-        pass 
+    async def create(self):
+        pass
 
-    def check_access(self, entity, user_id):
+    async def check_access(self, entity, user_id):
         if entity.user_id != user_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN, detail='Access denied!'
             )
 
-    def update(self, entity, **kwargs):
+    async def update(self, entity, **kwargs):
         for key, value in kwargs.items():
             setattr(entity, key, value)
-        self.db.commit()
+        await self.db.commit()
 
+    async def delete(self, entity):
+        await self.db.delete(entity)
+        await self.db.commit()
 
-    def delete(self, entity):
-        self.db.delete(entity)
-        self.db.commit()
-
-    
-    def cursor_paginate(self, query, sort_column: str, cursor: Optional[str] = None, limit: int = 10):
+    async def cursor_paginate(self, session, query, sort_column: str, cursor: Optional[str] = None, limit: int = 10):
         try:
             model = query.column_descriptions[0]['type']
             try:
                 sort_key = getattr(model, sort_column)
             except AttributeError:
                 raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST, 
+                    status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f'Invalid sort column: {sort_column}'
                 )
             if cursor:
-                query = query.filter_by(sort_key > cursor)
+                query = query.filter(sort_key > cursor)
 
             query = query.order_by(sort_key)
 
-            items = query.limit(limit+1).all()
+            # Execute query asynchronously with the session
+            result = await session.execute(query.limit(limit + 1))
+            items = result.scalars().all()
 
             has_more = len(items) > limit
-
             items = items[:limit]
 
             if has_more:
@@ -77,5 +77,6 @@ class BaseService(abc.ABC):
                 next_cursor = None
 
             return items, next_cursor
-        except: 
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Pagination error')
+        except Exception:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail='Pagination error')
