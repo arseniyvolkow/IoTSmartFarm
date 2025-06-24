@@ -7,7 +7,6 @@ import httpx
 from pydantic import BaseModel
 from starlette import status
 from ..models import Devices, Sensors, Farms
-from datetime import datetime, timezone
 from ..utils import login_via_token, BaseService
 from sqlalchemy import select
 router = APIRouter(

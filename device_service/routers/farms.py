@@ -5,8 +5,7 @@ from sqlalchemy.orm import Session
 from typing import Annotated, Optional
 from pydantic import BaseModel
 from ..utils import login_via_token, BaseService
-from ..models import Farms, CropManagment
-from datetime import date
+from ..models import Farms
 from .crops import CropService
 from sqlalchemy import select
 

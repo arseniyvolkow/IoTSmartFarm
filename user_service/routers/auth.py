@@ -57,7 +57,7 @@ class UserResponse(BaseModel):
 
 async def authenticate_user(username: str, password: str, db: db_dependency):
     query = select(Users).filter(Users.username == username)
-    result = await db.execute()
+    result = await db.execute(query)
     user = result.scalars().first()
     if not user:
         return False

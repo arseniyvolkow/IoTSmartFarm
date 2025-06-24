@@ -17,7 +17,7 @@ router = APIRouter(
 db_dependency = Annotated[Session, Depends(get_db)]
 
 
-class CropManagementModel(BaseModel):
+class CropManagmentModel(BaseModel):
     planting_date: date
     expected_harvest_date: date
     current_grow_stage: str
@@ -27,8 +27,8 @@ class CropManagementModel(BaseModel):
 class CropService(BaseService):
 
     async def get(self, crop_id):
-        query = select(CropManagement).filter(
-            CropManagement.crop_id == crop_id)
+        query = select(CropManagment).filter(
+            CropManagment.crop_id == crop_id)
         result = await self.db.execute(query)
         crop_entity = result.scalar_one_or_none()
         if not crop_entity:
@@ -36,19 +36,16 @@ class CropService(BaseService):
                 status_code=status.HTTP_404_NOT_FOUND, detail='Crop not found')
         return crop_entity
 
-    async def create(self, crop: CropManagementModel, user_id):
-        if user_id is None:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
-                                detail='Invalid token or user not found')
+    async def create(self, crop: CropManagmentModel, user_id):
         crop_data_dict = crop.model_dump()
         crop_data_dict['user_id'] = user_id
-        crop_entity = CropManagement(**crop_data_dict)
+        crop_entity = CropManagment(**crop_data_dict)
         self.db.add(crop_entity)
         await self.db.commit()
 
 
 @router.post('/crop', status_code=status.HTTP_200_OK)
-async def add_new_crop(db: db_dependency, crop: CropManagementModel, token: str = Query(max_length=250)):
+async def add_new_crop(db: db_dependency, crop: CropManagmentModel, token: str = Query(max_length=250)):
     user_entity = await login_via_token(token)
     user_id = user_entity.get('id')
     crop_service = CropService(db)
@@ -68,7 +65,7 @@ async def get_info_about_crop(db: db_dependency, crop_id: str = Path(max_length=
 
 @router.put('/crop/{crop_id}', status_code=status.HTTP_200_OK)
 async def change_crop_info(
-        crop_data: CropManagementModel,
+        crop_data: CropManagmentModel,
         db: db_dependency,
         token: str = Query(max_length=250),
         crop_id: str = Path(max_length=100)):
@@ -84,6 +81,8 @@ async def change_crop_info(
 @router.post('/type', status_code=status.HTTP_201_CREATED)
 async def new_crop_type(db: db_dependency, token: str = Query(max_length=250), crop_name: str = Query(max_length=100)):
     user_entity = await login_via_token(token)
+    if not user_entity:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED) 
     query = select(Crops).filter(Crops.crop_name == crop_name)
     result = await db.execute(query)
     existing_crop_type = result.scalars().first()
