@@ -4,7 +4,7 @@ from ..database import get_db
 from sqlalchemy.orm import Session
 from typing import Annotated, Optional
 from pydantic import BaseModel
-from ..utils import login_via_token, BaseService, get_current_user
+from ..utils import BaseService, get_current_user
 from datetime import date
 from ..models import CropManagment, Crops
 from sqlalchemy import select

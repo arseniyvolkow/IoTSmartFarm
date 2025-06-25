@@ -7,7 +7,7 @@ import httpx
 from pydantic import BaseModel
 from starlette import status
 from ..models import Devices, Sensors, Farms
-from ..utils import login_via_token, BaseService, get_current_user
+from ..utils import BaseService, get_current_user
 from sqlalchemy import select
 
 router = APIRouter(prefix="/devices", tags=["Devices"])
