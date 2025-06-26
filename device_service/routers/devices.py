@@ -1,125 +1,19 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Path, UploadFile, File
 from ..database import get_db
 from sqlalchemy.orm import Session
-from sqlalchemy.exc import IntegrityError
 from typing import Annotated, Optional
 import httpx
-from pydantic import BaseModel
 from starlette import status
-from ..models import Devices, Sensors, Farms
-from ..utils import BaseService, get_current_user
+from ..models import Devices, Farms
+from ..utils import get_current_user
 from sqlalchemy import select
+from ..services.device_service import DeviceService
+from ..schemas import AddNewDevice, CursorPagination
 
 router = APIRouter(prefix="/devices", tags=["Devices"])
 
 
 db_dependency = Annotated[Session, Depends(get_db)]
-
-
-class SensorInfo(BaseModel):
-    sensor_type: str
-    units_of_measure: str
-    max_value: float
-    min_value: float
-
-
-class AddNewDevice(BaseModel):
-    username: str
-    password: str
-    unique_device_id: str
-    device_ip_address: str
-    model_number: str
-    firmware_version: str
-    sensors_list: list[SensorInfo]
-
-
-class UpdateDeviceInfo(BaseModel):
-    status: str
-
-
-class DeviceSchema(BaseModel):
-    unique_device_id: str
-    user_id: int
-    farm_id: str
-    device_ip_address: str
-    model_number: str
-    firmware_version: str
-    status: str
-
-
-class CursorPagination(BaseModel):
-    items: list[DeviceSchema]
-    next_cursor: Optional[str] = None
-
-
-class DeviceService(BaseService):
-    """
-    A service class for managing device-related operations.
-
-    Methods:
-        get(device_id: str):
-            Retrieves a device by its unique ID.
-        create(user_id: int, device_data: AddNewDevice):
-            Creates a new device and its associated sensors.
-    """
-
-    async def get(self, device_id: str):
-        query = select(Devices).filter(Devices.unique_device_id == device_id)
-        result = await self.db.execute(query)
-        device = result.scalar_one_or_none()
-        if not device:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Device not found"
-            )
-        return device
-
-    async def create(self, user_id, device_data: AddNewDevice):
-        query = select(Devices).filter(
-            Devices.unique_device_id == device_data.unique_device_id
-        )
-        result = await self.db.execute(query)
-        existing_device = result.scalar_one_or_none()
-        if existing_device:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, detail="Device already exists!"
-            )
-        device_entity = Devices(
-            unique_device_id=device_data.unique_device_id,
-            user_id=user_id,
-            device_ip_address=device_data.device_ip_address,
-            model_number=device_data.model_number,
-            firmware_version=device_data.firmware_version,
-            status="inactive",
-        )
-        try:
-            self.db.add(device_entity)
-            await self.db.flush()
-            sensor_entities = [
-                Sensors(
-                    device_id=device_entity.unique_device_id,
-                    sensor_type=sensor.sensor_type,
-                    units_of_measure=sensor.units_of_measure,
-                    max_value=sensor.max_value,
-                    min_value=sensor.min_value,
-                )
-                for sensor in device_data.sensors_list
-            ]
-
-            self.db.bulk_save_objects(sensor_entities)
-            await self.db.commit()
-        except IntegrityError:
-            await self.db.rollback()
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Device with this unique ID already exists (DB constraint error).",
-            )
-        except Exception as e:
-            await self.db.rollback()
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Unexpected error: {str(e)}",
-            )
-        return device_entity
 
 
 @router.post(
