@@ -1,6 +1,7 @@
-from typing import Optional
+from typing import Any, Optional
 from pydantic import BaseModel
 from datetime import date
+
 # Device Models
 
 
@@ -63,3 +64,10 @@ class CropManagmentModel(BaseModel):
     expected_harvest_date: date
     current_grow_stage: str
     crop_type_id: str
+
+
+#Error
+
+class ErrorResponse(BaseModel):
+    message: str
+    details: Optional[Any] = None

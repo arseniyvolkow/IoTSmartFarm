@@ -16,7 +16,7 @@ router = APIRouter(prefix="/farms", tags=["Farms and Crops management"])
 db_dependency = Annotated[Session, Depends(get_db)]
 
 
-@router.post("/farm", status_code=status.HTTP_201_CREATED)
+@router.post("/farms", status_code=status.HTTP_201_CREATED)
 async def add_new_farm(
     db: db_dependency,
     current_user: Annotated[dict, Depends(get_current_user)],
@@ -26,7 +26,7 @@ async def add_new_farm(
     await farm_service.create(farm, current_user["id"])
     return {"message": "Farm added successfully"}
 
-
+@router.get('/farms', status_code=status.HTTP_200_OK)
 async def get_all_farms(
     db: db_dependency,
     current_user: Annotated[dict, Depends(get_current_user)],

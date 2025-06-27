@@ -15,7 +15,7 @@ router = APIRouter(prefix="/crop", tags=["Crops"])
 db_dependency = Annotated[Session, Depends(get_db)]
 
 
-@router.post("/crop", status_code=status.HTTP_200_OK)
+@router.post("/crops", status_code=status.HTTP_200_OK)
 async def add_new_crop(
     db: db_dependency,
     crop: CropManagmentModel,
@@ -52,7 +52,7 @@ async def change_crop_info(
     return {"detail": f"Crop {crop_entity.crop_id} info was updated!"}
 
 
-@router.post("/type", status_code=status.HTTP_201_CREATED)
+@router.post("/crop_types", status_code=status.HTTP_201_CREATED)
 async def new_crop_type(
     db: db_dependency,
     current_user: Annotated[dict, Depends(get_current_user)],
@@ -71,7 +71,7 @@ async def new_crop_type(
     return {"details": f'New crop type "{crop_name}" added successfully!'}
 
 
-@router.get("/type", status_code=status.HTTP_200_OK)
+@router.get("/crop_types", status_code=status.HTTP_200_OK)
 async def all_crop_types(
     db: db_dependency,
     sort_column: str,

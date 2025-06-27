@@ -5,7 +5,7 @@ from ..models import Devices, Sensors
 from ..utils import BaseService
 from sqlalchemy import select
 from ..schemas import AddNewDevice
-
+from sqlalchemy.orm import joinedload
 
 class DeviceService(BaseService):
     """
@@ -18,8 +18,8 @@ class DeviceService(BaseService):
             Creates a new device and its associated sensors.
     """
 
-    async def get(self, device_id: str):
-        query = select(Devices).filter(Devices.unique_device_id == device_id)
+    async def get(self, device_id: str) -> Devices:
+        query = select(Devices).filter(Devices.unique_device_id == device_id).options(joinedload(Devices.sensors))
         result = await self.db.execute(query)
         device = result.scalar_one_or_none()
         if not device:
@@ -28,7 +28,7 @@ class DeviceService(BaseService):
             )
         return device
 
-    async def create(self, user_id, device_data: AddNewDevice):
+    async def create(self, user_id, device_data: AddNewDevice) -> Devices:
         query = select(Devices).filter(
             Devices.unique_device_id == device_data.unique_device_id
         )

@@ -4,7 +4,7 @@ from ..utils import BaseService
 from ..models import Farms
 from ..schemas import FarmModel
 from sqlalchemy import select
-
+from sqlalchemy.orm import joinedload
 
 class FarmService(BaseService):
     async def create(self, farm: FarmModel, user_id):
@@ -22,9 +22,10 @@ class FarmService(BaseService):
         )
         self.db.add(farm_entity)
         await self.db.commit()
+        return farm_entity
 
-    async def get(self, farm_id):
-        query = select(Farms).filter(Farms.farm_id == farm_id)
+    async def get(self, farm_id) -> Farms:
+        query = select(Farms).filter(Farms.farm_id == farm_id).options(joinedload(Farms.devices), joinedload(Farms.crop_managment))
         result = await self.db.execute(query)
         farm_entity = result.scalar_one_or_none()
         if not farm_entity:

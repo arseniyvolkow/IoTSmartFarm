@@ -1,6 +1,6 @@
 from .database import Base
 from sqlalchemy.orm import relationship, Mapped, mapped_column
-from sqlalchemy import Enum, ForeignKey, DateTime
+from sqlalchemy import Enum, ForeignKey, DateTime, Index # Import Index
 from typing import List
 import uuid
 from sqlalchemy.sql import func
@@ -21,7 +21,7 @@ def generate_uuid():
 class Crops(Base):
     __tablename__ = "crops"
     crop_id: Mapped[str] = mapped_column(primary_key=True, default=generate_uuid)
-    crop_name: Mapped[str] = mapped_column(unique=True)
+    crop_name: Mapped[str] = mapped_column(unique=True, index=True) 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
@@ -36,15 +36,15 @@ class Farms(Base):
     farm_id: Mapped[str] = mapped_column(primary_key=True, default=generate_uuid)
     farm_name: Mapped[str]
     total_area: Mapped[int]
-    user_id: Mapped[str]
+    user_id: Mapped[str] = mapped_column(index=True) 
     location: Mapped[str]
-    crop: Mapped[str] = mapped_column(ForeignKey("CropManagement.crop_id"))
+    crop_id: Mapped[str] = mapped_column(ForeignKey("CropManagement.crop_id"), index=True) 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
     devices: Mapped[List["Devices"]] = relationship(back_populates="farm")
     crop_managment: Mapped[List["CropManagment"]] = relationship(
-        "Crop_managment", back_populates="farm"
+        "CropManagment", back_populates="farm"
     )
 
 
@@ -52,10 +52,10 @@ class CropManagment(Base):
     __tablename__ = "CropManagement"
     crop_id: Mapped[str] = mapped_column(primary_key=True, default=generate_uuid)
     planting_date: Mapped[date]
-    user_id: Mapped[str]
+    user_id: Mapped[str] = mapped_column(index=True) 
     expected_harvest_date: Mapped[date]
     current_grow_stage: Mapped[str]
-    crop_type_id: Mapped[str] = mapped_column(ForeignKey("crops.crop_id"))
+    crop_type_id: Mapped[str] = mapped_column(ForeignKey("crops.crop_id"), index=True) 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
@@ -69,10 +69,10 @@ class CropManagment(Base):
 class Devices(Base):
     __tablename__ = "devices"
 
-    uniqee_device_id: Mapped[str] = mapped_column(primary_key=True)
+    unique_device_id: Mapped[str] = mapped_column(primary_key=True)
     device_ip_address: Mapped[str]
-    user_id: Mapped[str]
-    farm_id: Mapped[str] = mapped_column(ForeignKey("farms.farm_id"))
+    user_id: Mapped[str] = mapped_column(index=True) 
+    farm_id: Mapped[str] = mapped_column(ForeignKey("farms.farm_id"), index=True) 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
@@ -91,7 +91,7 @@ class Sensors(Base):
     __tablename__ = "sensors"
 
     sensor_id: Mapped[str] = mapped_column(primary_key=True, default=generate_uuid)
-    device_id: Mapped[str] = mapped_column(ForeignKey("devices.unique_device_id"))
+    device_id: Mapped[str] = mapped_column(ForeignKey("devices.unique_device_id"), index=True)
     sensor_type: Mapped[str]
     units_of_measure: Mapped[str]
     max_value: Mapped[float]
@@ -107,8 +107,8 @@ class Alerts(Base):
     __tablename__ = "alerts"
 
     alert_id: Mapped[str] = mapped_column(primary_key=True, default=generate_uuid)
-    farm_id: Mapped[str] = mapped_column(ForeignKey("farms.farm_id"))
-    device_id: Mapped[str] = mapped_column(ForeignKey("devices.unique_device_id"))
+    farm_id: Mapped[str] = mapped_column(ForeignKey("farms.farm_id"), index=True)
+    device_id: Mapped[str] = mapped_column(ForeignKey("devices.unique_device_id"), index=True) 
     alert_type: Mapped[str]
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()

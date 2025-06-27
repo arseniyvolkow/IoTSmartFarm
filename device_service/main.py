@@ -1,5 +1,4 @@
 from fastapi import FastAPI
-from pydantic import BaseModel
 from .models import Base
 from .database import engine
 from contextlib import asynccontextmanager

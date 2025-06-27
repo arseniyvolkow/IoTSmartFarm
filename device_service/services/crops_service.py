@@ -23,3 +23,4 @@ class CropService(BaseService):
         crop_entity = CropManagment(**crop_data_dict)
         self.db.add(crop_entity)
         await self.db.commit()
+        
