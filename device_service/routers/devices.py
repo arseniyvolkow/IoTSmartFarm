@@ -9,6 +9,7 @@ from ..utils import get_current_user
 from sqlalchemy import select
 from ..services.device_service import DeviceService
 from ..schemas import AddNewDevice, CursorPagination
+from ..services.farm_service import FarmService
 
 router = APIRouter(prefix="/devices", tags=["Devices"])
 
@@ -40,7 +41,6 @@ async def new_device(db: db_dependency, device_data: AddNewDevice):
             user_id = user_info.get("user_id")
 
             device_service = DeviceService(db)
-
             device_entity = await device_service.create(user_id, device_data)
             return {"status": "success", "device_id": device_entity.unique_device_id}
 
@@ -49,21 +49,20 @@ async def new_device(db: db_dependency, device_data: AddNewDevice):
 
 
 @router.get(
-    "/unsigned-devices", status_code=status.HTTP_200_OK, response_model=CursorPagination
+    "/unassigned-devices",
+    status_code=status.HTTP_200_OK,
+    response_model=CursorPagination,
 )
-async def unsigned_sensor(
+async def unassigned_sensor(
     db: db_dependency,
     sort_column: str,
     current_user: Annotated[dict, Depends(get_current_user)],
     cursor: Optional[str] = Query(None),
     limit: Optional[int] = Query(10, ge=10, le=200),
 ):
-    query = select(Devices).filter(
-        Devices.user_id == current_user["id"], Devices.farm_id.is_(None)
-    )
     device_service = DeviceService(db)
-    items, next_cursor = await device_service.cursor_paginate(
-        db, query, sort_column, cursor, limit
+    items, next_cursor = await device_service.get_unassigned_devices(
+        current_user["id"], sort_column, cursor, limit
     )
     return {"items": items, "next_cursor": next_cursor}
 
@@ -76,10 +75,9 @@ async def all_devices(
     cursor: Optional[str] = Query(None),
     limit: Optional[int] = Query(10, ge=10, le=200),
 ):
-    query = select(Devices).filter(Devices.user_id == current_user["id"])
     device_service = DeviceService(db)
-    items, next_cursor = await device_service.cursor_paginate(
-        db, query, sort_column, cursor, limit
+    items, next_cursor = await device_service.get_all_devices(
+        current_user["id"], sort_column, cursor, limit
     )
     return {"items": items, "next_cursor": next_cursor}
 
@@ -93,21 +91,12 @@ async def farm_devices(
     cursor: Optional[str] = Query(None),
     limit: Optional[int] = Query(10, ge=10, le=200),
 ):
-    farm_query = select(Farms).filter(Farms.farm_id == farm_id).first()
-    farm_result = await db.execute(farm_query)
-    farm_entity = farm_result.scalar_one_or_none()
-    if farm_entity is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Farm does not exist!"
-        )
-    if farm_entity.user_id != current_user["id"]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="No access to this device!"
-        )
-    query = select(Devices).filter(Devices.farm_id == farm_entity.farm_id)
+    farm_service = FarmService(db)
+    farm_entity = await farm_service.get(farm_id)
+    await farm_service.check_access(farm_entity, current_user["id"])
     device_service = DeviceService(db)
-    items, next_cursor = await device_service.cursor_paginate(
-        db, query, sort_column, cursor, limit
+    items, next_cursor = await device_service.get_farms_devices(
+        current_user["id"], farm_entity, sort_column, cursor, limit
     )
     return {"items": items, "next_cursor": next_cursor}
 
@@ -119,22 +108,13 @@ async def assign_device(
     device_id: str = Query(max_length=100),
     farm_id: str = Query(max_length=100),
 ):
-    farm_query = select(Farms).filter(Farms.farm_id == farm_id)
-    farm_result = await db.execute(farm_query)
-    farm_entity = farm_result.scalar_one_or_none()
-    if farm_entity is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Farm does not exist!"
-        )
-    if farm_entity.user_id != current_user["id"]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="No access to this farm!"
-        )
+    farm_service = FarmService(db)
+    farm_entity = await farm_service.get(farm_id)
+    await farm_service.check_access(farm_entity, current_user["id"])
     device_service = DeviceService(db)
     device_entity = await device_service.get(device_id)
     await device_service.check_access(device_entity, current_user["id"])
-    device_entity.farm_id = farm_entity.farm_id
-    await db.commit()
+    await device_service.assign_device_to_farm(device_entity, farm_entity)
     return {"details": "Device assigned to farm!"}
 
 
@@ -189,3 +169,6 @@ async def device_firmware_update(
         return {"status": "success", "device_response": device_response.text}
     except Exception as e:
         return {"status": "error", "detail": str(e)}
+
+
+ 

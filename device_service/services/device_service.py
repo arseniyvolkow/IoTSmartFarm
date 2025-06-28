@@ -1,11 +1,13 @@
 from fastapi import HTTPException
 from sqlalchemy.exc import IntegrityError
 from starlette import status
-from ..models import Devices, Sensors
+from ..models import Devices, Sensors, Farms
 from ..utils import BaseService
 from sqlalchemy import select
 from ..schemas import AddNewDevice
 from sqlalchemy.orm import joinedload
+from typing import Optional
+
 
 class DeviceService(BaseService):
     """
@@ -19,7 +21,11 @@ class DeviceService(BaseService):
     """
 
     async def get(self, device_id: str) -> Devices:
-        query = select(Devices).filter(Devices.unique_device_id == device_id).options(joinedload(Devices.sensors))
+        query = (
+            select(Devices)
+            .filter(Devices.unique_device_id == device_id)
+            .options(joinedload(Devices.sensors))
+        )
         result = await self.db.execute(query)
         device = result.scalar_one_or_none()
         if not device:
@@ -74,4 +80,53 @@ class DeviceService(BaseService):
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Unexpected error: {str(e)}",
             )
+        return device_entity
+
+    async def get_unassigned_devices(
+        self,
+        user_id: int,
+        sort_column: str,
+        cursor: Optional[str] = None,
+        limit: Optional[int] = 10,
+    ):
+        query = select(Devices).filter(
+            Devices.user_id == user_id, Devices.farm_id.is_(None)
+        )
+        items, next_cursor = await self.cursor_paginate(
+            self.db, query, sort_column, cursor, limit
+        )
+        return items, next_cursor
+
+    async def get_all_devices(
+        self,
+        user_id: int,
+        sort_column: str,
+        cursor: Optional[str] = None,
+        limit: Optional[int] = 10,
+    ):
+        query = select(Devices).filter(Devices.user_id == user_id)
+
+        items, next_cursor = await self.cursor_paginate(
+            self.db, query, sort_column, cursor, limit
+        )
+        return items, next_cursor
+
+    async def get_farms_devices(
+        self,
+        user_id:int,
+        farm_entity: Farms,
+        sort_column: str,
+        cursor: Optional[str] = None,
+        limit: Optional[int] = 10,
+    ):
+        query = select(Devices).filter(Devices.farm_id == farm_entity.farm_id, Devices.user_id == user_id)
+        items, next_cursor = await self.cursor_paginate(
+            self.db, query, sort_column, cursor, limit
+        )
+        return items, next_cursor
+    
+
+    async def assign_device_to_farm(self, device_entity, farm_entity):
+        device_entity.farm_id = farm_entity.farm_id
+        await self.db.commit()
         return device_entity
