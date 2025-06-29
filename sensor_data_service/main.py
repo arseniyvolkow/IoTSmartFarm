@@ -1,5 +1,4 @@
 from fastapi import FastAPI, HTTPException
-from influxdb_client import InfluxDBClient
 from .database import Settings, MQTTService, InfluxDBService
 import json
 
@@ -48,12 +47,26 @@ mqtt_service = MQTTService(
 async def lifespan(app: FastAPI):
     try:
         mqtt_service.start()
+        
         print("MQTT Service started.")
+        influx_service = InfluxDBService(
+        url=settings.INFLUXDB_URL,
+        token=settings.INFLUXDB_TOKEN,
+        org=settings.INFLUXDB_ORG,
+        bucket=settings.INFLUXDB_BUCKET
+    )
+        # The __aenter__ method is called here
+        await influx_service.__aenter__()
+
+    # The service instance is stored in the application's state
+    # so it can be accessed by dependencies later.
+        app.state.influx_service = influx_service
         yield  # App will run while this generator yields
     except Exception as e:
         print(f"Error during startup: {e}")
         raise
     finally:
+        await influx_service.__aexit__(None, None, None)
         mqtt_service.stop()
         influxdb_service.close()
         print("MQTT Service stopped and InfluxDB Service closed.")

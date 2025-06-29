@@ -1,6 +1,7 @@
 import paho.mqtt.client as mqtt
-from influxdb_client import InfluxDBClient, Point
-from influxdb_client.client.write_api import SYNCHRONOUS
+from influxdb_client import Point
+from influxdb_client.client.influxdb_client_async import InfluxDBClientAsync
+# from influxdb_client.client.write_api import SYNCHRONOUS
 from datetime import datetime, timezone
 import os
 
@@ -18,30 +19,61 @@ class Settings:
 
 
 class InfluxDBService:
-    def __init__(self, url, token, org, bucket):
-        self.client = InfluxDBClient(url=url, token=token, org=org)
-        self.write_api = self.client.write_api(write_options=SYNCHRONOUS)
+    """
+    Handles asynchronous communication with InfluxDB and manages its own lifecycle
+    as an asynchronous context manager.
+    """
+    def __init__(self, url: str, token: str, org: str, bucket: str):
+        self._url = url
+        self._token = token
+        self._org = org
         self.bucket = bucket
-        self.org = org
+        # Client is not created yet, just configured
+        self._client = None
+        self.write_api = None
 
-    def save_sensor_data(self, device_id, sensor_data):
+    async def __aenter__(self):
+        """Initializes the async client and write_api upon entering the context."""
+        print("Initializing InfluxDB client...")
+        self._client = InfluxDBClientAsync(url=self._url, token=self._token, org=self._org)
+        self.write_api = self._client.get_write_api()
+        print("InfluxDB client initialized.")
+        return self # Return the instance to be used in the 'with' block
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Closes the client connection upon exiting the context."""
+        if self._client:
+            await self._client.close()
+            print("InfluxDB client closed.")
+
+    # Your async save_sensor_data method from before goes here
+    async def save_sensor_data(self, device_id: str, sensor_data_list: list):
+        # (The implementation is the same as the previous answer)
         try:
-            for sensor_type, value in sensor_data.items():
+            points = []
+            timestamp = datetime.now(timezone.utc)
+            for sensor_data in sensor_data_list:
+                sensor_id = sensor_data.get("sensor_id")
+                sensor_type = sensor_data.get("sensor_type")
+                value = sensor_data.get("value")
+                if not all([sensor_id, sensor_type, value is not None]):
+                    print(f"Skipping invalid sensor data: {sensor_data}")
+                    continue
                 point = (
                     Point("sensor_data")
                     .tag("device_id", device_id)
-                    .tag("sensor_type", sensor_type)  # Add sensor_type as tag
-                    .field("value", value)            # Use consistent field name
-                    .time(datetime.now(timezone.utc))
+                    .tag("sensor_id", sensor_id)
+                    .tag("sensor_type", sensor_type)
+                    .field("value", float(value))
+                    .time(timestamp)
                 )
-                self.write_api.write(bucket=self.bucket,
-                                   org=self.org, record=point)
-                print(f"Saved to InfluxDB: {sensor_type} = {value}")
+                points.append(point)
+            if points:
+                await self.write_api.write(bucket=self.bucket, org=self._org, record=points)
+                print(f"Saved {len(points)} points to InfluxDB for device {device_id}")
         except Exception as e:
             print(f"Error saving to InfluxDB: {e}")
 
-    def close(self):
-        self.client.close()
 
 # MQTT Service
 
