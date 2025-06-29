@@ -53,7 +53,7 @@ async def new_device(db: db_dependency, device_data: AddNewDevice):
     status_code=status.HTTP_200_OK,
     response_model=CursorPagination,
 )
-async def unassigned_sensor(
+async def get_unassigned_sensor(
     db: db_dependency,
     sort_column: str,
     current_user: Annotated[dict, Depends(get_current_user)],

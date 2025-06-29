@@ -5,6 +5,8 @@ from ..models import Farms
 from ..schemas import FarmModel
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload
+from typing import Optional
+
 
 class FarmService(BaseService):
     async def create(self, farm: FarmModel, user_id):
@@ -25,7 +27,11 @@ class FarmService(BaseService):
         return farm_entity
 
     async def get(self, farm_id) -> Farms:
-        query = select(Farms).filter(Farms.farm_id == farm_id).options(joinedload(Farms.devices), joinedload(Farms.crop_managment))
+        query = (
+            select(Farms)
+            .filter(Farms.farm_id == farm_id)
+            .options(joinedload(Farms.devices), joinedload(Farms.crop_managment))
+        )
         result = await self.db.execute(query)
         farm_entity = result.scalar_one_or_none()
         if not farm_entity:
@@ -33,3 +39,16 @@ class FarmService(BaseService):
                 status_code=status.HTTP_404_NOT_FOUND, detail="Farm not found"
             )
         return farm_entity
+
+    async def get_all_farms(
+        self,
+        user_id: int,
+        sort_column: str,
+        cursor: Optional[str] = None,
+        limit: Optional[int] = 10,
+    ):
+        query = select(Farms).filter(Farms.user_id == user_id)
+        items, next_cursor = await self.cursor_paginate(
+            self.db, query, sort_column, cursor, limit
+        )
+        return items, next_cursor

@@ -23,4 +23,9 @@ class CropService(BaseService):
         crop_entity = CropManagment(**crop_data_dict)
         self.db.add(crop_entity)
         await self.db.commit()
-        
+
+
+    async def assign_crop_to_farm(self, farm_entity, crop_entity):
+        farm_entity.farm_id = crop_entity.farm_id
+        await self.db.commit()
+        return farm_entity

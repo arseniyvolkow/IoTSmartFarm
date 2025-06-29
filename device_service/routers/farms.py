@@ -4,10 +4,8 @@ from ..database import get_db
 from sqlalchemy.orm import Session
 from typing import Annotated, Optional
 from ..utils import get_current_user
-from ..models import Farms
 from .crops import CropService
 from ..schemas import FarmModel
-from sqlalchemy import select
 from ..services.farm_service import FarmService
 
 router = APIRouter(prefix="/farms", tags=["Farms and Crops management"])
@@ -26,7 +24,8 @@ async def add_new_farm(
     await farm_service.create(farm, current_user["id"])
     return {"message": "Farm added successfully"}
 
-@router.get('/farms', status_code=status.HTTP_200_OK)
+
+@router.get("/farms", status_code=status.HTTP_200_OK)
 async def get_all_farms(
     db: db_dependency,
     current_user: Annotated[dict, Depends(get_current_user)],
@@ -34,10 +33,9 @@ async def get_all_farms(
     cursor: Optional[str] = Query(None),
     limit: Optional[int] = Query(10, le=200),
 ):
-    query = select(Farms).filter(Farms.user_id == current_user["id"])
     farm_service = FarmService(db)
-    items, next_cursor = await farm_service.cursor_paginate(
-        db, query, sort_column, cursor, limit
+    items, next_cursor = await farm_service.get_all_farms(
+        current_user["id"], sort_column, cursor, limit
     )
     return {"items": items, "next_cursor": next_cursor}
 
@@ -80,8 +78,7 @@ async def assign_crop_to_farm(
     await farm_service.check_access(farm_entity, current_user["id"])
     crop_service = CropService(db)
     crop_entity = await crop_service.get(crop_id)
-    farm_entity.crop_id = crop_entity.crop_id
-    await db.commit()
+    await crop_service.assign_crop_to_farm(farm_entity, crop_entity)
     return {"details": "Crop assigned to farm!"}
 
 
