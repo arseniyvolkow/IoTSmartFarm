@@ -113,20 +113,38 @@ class DeviceService(BaseService):
 
     async def get_farms_devices(
         self,
-        user_id:int,
+        user_id: int,
         farm_entity: Farms,
         sort_column: str,
         cursor: Optional[str] = None,
         limit: Optional[int] = 10,
     ):
-        query = select(Devices).filter(Devices.farm_id == farm_entity.farm_id, Devices.user_id == user_id)
+        query = select(Devices).filter(
+            Devices.farm_id == farm_entity.farm_id, Devices.user_id == user_id
+        )
         items, next_cursor = await self.cursor_paginate(
             self.db, query, sort_column, cursor, limit
         )
         return items, next_cursor
-    
 
     async def assign_device_to_farm(self, device_entity, farm_entity):
         device_entity.farm_id = farm_entity.farm_id
+        await self.db.commit()
+        return device_entity
+
+    async def list_of_new_device(
+        self,
+        cursor: Optional[str] = None,
+        limit: Optional[int] = 10,
+    ):
+        query = select(Devices).filter(Devices.user_id.is_(None))
+        items, next_cursor = await self.cursor_paginate(
+            self.db, query, "created_at", cursor, limit
+        )
+        return items, next_cursor
+    
+    
+    async def assign_device_to_user(self, device_entity, user_id):
+        device_entity.user_id = user_id
         await self.db.commit()
         return device_entity

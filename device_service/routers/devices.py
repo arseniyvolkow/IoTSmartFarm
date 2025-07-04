@@ -4,9 +4,7 @@ from sqlalchemy.orm import Session
 from typing import Annotated, Optional
 import httpx
 from starlette import status
-from ..models import Devices, Farms
 from ..utils import get_current_user
-from sqlalchemy import select
 from ..services.device_service import DeviceService
 from ..schemas import AddNewDevice, CursorPagination
 from ..services.farm_service import FarmService
@@ -15,38 +13,28 @@ router = APIRouter(prefix="/devices", tags=["Devices"])
 
 
 db_dependency = Annotated[Session, Depends(get_db)]
+user_dependency = Annotated[dict, Depends(get_current_user)]
 
 
-@router.post(
-    "/device",
-    status_code=status.HTTP_201_CREATED,
-)
-async def new_device(db: db_dependency, device_data: AddNewDevice):
-    async with httpx.AsyncClient() as client:
-        try:
-            user_service_response = await client.post(
-                "http://user_service:8005/auth/login_for_id",
-                data={
-                    "username": device_data.username,
-                    "password": device_data.password,
-                },
-            )
-            if user_service_response.status_code != 200:
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Incorrect login data",
-                )
 
-            user_info = user_service_response.json()
-            user_id = user_info.get("user_id")
+@router.post("/new-devices", status_code=status.HTTP_200_OK)
+async def get_list_of_new_devices(
+    db: db_dependency,
+    current_user: user_dependency,
+    cursor: Optional[str] = Query(None),
+    limit: Optional[int] = Query(10, ge=10, le=200),
+):
+    device_service = DeviceService(db)
+    items, next_cursor = await device_service.list_of_new_device(cursor, limit)
+    return {"items": items, "next_cursor": next_cursor}
 
-            device_service = DeviceService(db)
-            device_entity = await device_service.create(user_id, device_data)
-            return {"status": "success", "device_id": device_entity.unique_device_id}
 
-        except httpx.RequestError:
-            return {"status": "error", "message": "User service unavailable!"}
-
+@router.patch('/assign-device-to-user')
+async def assign_device_to_user(db: db_dependency,
+    current_user: user_dependency,device_id):
+    device_service = DeviceService(db)
+    device_entity = device_service.get(device_id)
+    return await device_service.assign_device_to_user(device_entity, current_user["id"])
 
 @router.get(
     "/unassigned-devices",
@@ -56,7 +44,7 @@ async def new_device(db: db_dependency, device_data: AddNewDevice):
 async def get_unassigned_sensor(
     db: db_dependency,
     sort_column: str,
-    current_user: Annotated[dict, Depends(get_current_user)],
+    current_user: user_dependency,
     cursor: Optional[str] = Query(None),
     limit: Optional[int] = Query(10, ge=10, le=200),
 ):
@@ -71,7 +59,7 @@ async def get_unassigned_sensor(
 async def all_devices(
     db: db_dependency,
     sort_column: str,
-    current_user: Annotated[dict, Depends(get_current_user)],
+    current_user: user_dependency,
     cursor: Optional[str] = Query(None),
     limit: Optional[int] = Query(10, ge=10, le=200),
 ):
@@ -86,7 +74,7 @@ async def all_devices(
 async def farm_devices(
     db: db_dependency,
     sort_column: str,
-    current_user: Annotated[dict, Depends(get_current_user)],
+    current_user: user_dependency,
     farm_id: str = Path(max_length=100),
     cursor: Optional[str] = Query(None),
     limit: Optional[int] = Query(10, ge=10, le=200),
@@ -102,9 +90,9 @@ async def farm_devices(
 
 
 @router.patch("/assign-device-to-farm", status_code=status.HTTP_200_OK)
-async def assign_device(
+async def assign_device_to_farm(
     db: db_dependency,
-    current_user: Annotated[dict, Depends(get_current_user)],
+    current_user: user_dependency,
     device_id: str = Query(max_length=100),
     farm_id: str = Query(max_length=100),
 ):
@@ -121,7 +109,7 @@ async def assign_device(
 @router.patch("/device/{device_id}", status_code=status.HTTP_200_OK)
 async def update_device_info(
     db: db_dependency,
-    current_user: Annotated[dict, Depends(get_current_user)],
+    current_user: user_dependency,
     new_status: str = Query(max_length=15, regex="^(active|inactive|maintenance)$"),
     device_id: str = Path(max_length=250),
 ):
@@ -135,7 +123,7 @@ async def update_device_info(
 @router.delete("/device/{device_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_device(
     db: db_dependency,
-    current_user: Annotated[dict, Depends(get_current_user)],
+    current_user: user_dependency,
     device_id: str = Path(max_length=250),
 ):
     device_service = DeviceService(db)
@@ -147,7 +135,7 @@ async def delete_device(
 @router.post("/upload_firmware/{device_id}", status_code=status.HTTP_200_OK)
 async def device_firmware_update(
     db: db_dependency,
-    current_user: Annotated[dict, Depends(get_current_user)],
+    current_user: user_dependency,
     file: UploadFile = File(...),
     device_id: str = Path(max_length=100),
 ):
@@ -169,6 +157,3 @@ async def device_firmware_update(
         return {"status": "success", "device_response": device_response.text}
     except Exception as e:
         return {"status": "error", "detail": str(e)}
-
-
- 

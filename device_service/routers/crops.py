@@ -13,13 +13,13 @@ from ..services.crops_service import CropService
 router = APIRouter(prefix="/crop", tags=["Crops"])
 
 db_dependency = Annotated[Session, Depends(get_db)]
-
+user_dependency = Annotated[dict, Depends(get_current_user)]
 
 @router.post("/crops", status_code=status.HTTP_200_OK)
 async def add_new_crop(
     db: db_dependency,
     crop: CropManagmentModel,
-    current_user: Annotated[dict, Depends(get_current_user)],
+    current_user: user_dependency,
 ):
     crop_service = CropService(db)
     await crop_service.create(crop, current_user["id"])
@@ -29,7 +29,7 @@ async def add_new_crop(
 @router.get("/crop/{crop_id}", status_code=status.HTTP_200_OK)
 async def get_info_about_crop(
     db: db_dependency,
-    current_user: Annotated[dict, Depends(get_current_user)],
+    current_user: user_dependency,
     crop_id: str = Path(max_length=100),
 ):
     crop_service = CropService(db)
@@ -42,7 +42,7 @@ async def get_info_about_crop(
 async def change_crop_info(
     crop_data: CropManagmentModel,
     db: db_dependency,
-    current_user: Annotated[dict, Depends(get_current_user)],
+    current_user: user_dependency,
     crop_id: str = Path(max_length=100),
 ):
     crop_service = CropService(db)
@@ -55,7 +55,7 @@ async def change_crop_info(
 @router.post("/crop_types", status_code=status.HTTP_201_CREATED)
 async def new_crop_type(
     db: db_dependency,
-    current_user: Annotated[dict, Depends(get_current_user)],
+    current_user: user_dependency,
     crop_name: str = Query(max_length=100),
 ):
     query = select(Crops).filter(Crops.crop_name == crop_name)

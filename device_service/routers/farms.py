@@ -12,12 +12,12 @@ router = APIRouter(prefix="/farms", tags=["Farms and Crops management"])
 
 
 db_dependency = Annotated[Session, Depends(get_db)]
-
+user_dependency = Annotated[dict, Depends(get_current_user)]
 
 @router.post("/farms", status_code=status.HTTP_201_CREATED)
 async def add_new_farm(
     db: db_dependency,
-    current_user: Annotated[dict, Depends(get_current_user)],
+    current_user: user_dependency,
     farm: FarmModel,
 ):
     farm_service = FarmService(db)
@@ -28,7 +28,7 @@ async def add_new_farm(
 @router.get("/farms", status_code=status.HTTP_200_OK)
 async def get_all_farms(
     db: db_dependency,
-    current_user: Annotated[dict, Depends(get_current_user)],
+    current_user: user_dependency,
     sort_column: str,
     cursor: Optional[str] = Query(None),
     limit: Optional[int] = Query(10, le=200),
@@ -43,7 +43,7 @@ async def get_all_farms(
 @router.get("/farm/{farm_id}")
 async def get(
     db: db_dependency,
-    current_user: Annotated[dict, Depends(get_current_user)],
+    current_user: user_dependency,
     farm_id: str = Path(max_length=100),
 ):
     farm_service = FarmService(db)
@@ -56,7 +56,7 @@ async def get(
 async def update_farm_info(
     db: db_dependency,
     farm: FarmModel,
-    current_user: Annotated[dict, Depends(get_current_user)],
+    current_user: user_dependency,
     farm_id: str = Path(max_length=100),
 ):
     farm_service = FarmService(db)
@@ -69,7 +69,7 @@ async def update_farm_info(
 @router.patch("/farm/{farm_id}", status_code=status.HTTP_200_OK)
 async def assign_crop_to_farm(
     db: db_dependency,
-    current_user: Annotated[dict, Depends(get_current_user)],
+    current_user: user_dependency,
     farm_id: str = Path(max_length=100),
     crop_id: str = Query(max_length=100),
 ):
@@ -85,7 +85,7 @@ async def assign_crop_to_farm(
 @router.delete("/farm/{farm_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_farm(
     db: db_dependency,
-    current_user: Annotated[dict, Depends(get_current_user)],
+    current_user: user_dependency,
     farm_id: str = Path(max_length=100),
 ):
     farm_service = FarmService(db)
