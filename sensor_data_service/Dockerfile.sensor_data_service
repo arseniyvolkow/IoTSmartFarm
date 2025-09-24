@@ -14,7 +14,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . /app/sensor_data_service
 
 # Make port 8000 available to the world outside this container
-EXPOSE 8006
+EXPOSE 8007
 
 # Run app.py when the container launches
-CMD ["uvicorn", "sensor_data_service.main:app", "--host", "0.0.0.0", "--port", "8006"]
+CMD ["uvicorn", "sensor_data_service.main:app", "--host", "0.0.0.0", "--port", "8007"]

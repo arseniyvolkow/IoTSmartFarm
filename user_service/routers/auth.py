@@ -2,7 +2,6 @@ from passlib.context import CryptContext
 from typing import Annotated
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import APIRouter, Depends, HTTPException
-from ..database import get_db
 from pydantic import BaseModel
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from starlette import status
@@ -13,91 +12,21 @@ import os
 from sqlalchemy import select
 from dotenv import load_dotenv
 import re
+from ..schemas import Token, CreateUserRequest, UserResponse
+from ..utils import (
+    SECRET_KEY,
+    db_dependency,
+    bcrypt_context,
+    user_dependency,
+    ALGORITHM,
+    authenticate_user,
+    create_access_token,
+)
 
 
 load_dotenv()
 
 router = APIRouter(prefix="/auth", tags=["auth"])
-
-
-SECRET_KEY = os.getenv("SECRET_KEY")
-if not SECRET_KEY:
-    raise ValueError("SECRET_KEY environment variable not set")
-
-ALGORITHM = "HS256"
-
-bcrypt_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-db_dependency = Annotated[AsyncSession, Depends(get_db)]
-
-
-Oauth2_bearer = OAuth2PasswordBearer(tokenUrl="auth/token")
-
-
-class Token(BaseModel):
-    access_token: str
-    token_type: str
-
-
-class CreateUserRequest(BaseModel):
-    username: str
-    email: str
-    password: str
-    contact_number: str
-    role: str
-
-
-class UserResponse(BaseModel):
-    username: str
-    id: int
-    role: str
-
-
-async def authenticate_user(username: str, password: str, db: db_dependency):
-    query = select(Users).filter(Users.username == username)
-    result = await db.execute(query)
-    user = result.scalars().first()
-    if not user:
-        return False
-    if not bcrypt_context.verify(password, user.hashed_password):
-        return False
-    return user
-
-
-def create_access_token(
-    username: str, user_id: int, role: str, expires_delta: timedelta
-):
-    encode = {"username": username, "id": user_id, "role": role}
-    expires = datetime.now(timezone.utc) + expires_delta
-    encode.update({"exp": expires})
-    return jwt.encode(encode, SECRET_KEY, algorithm=ALGORITHM)
-
-
-async def get_current_user(token: Annotated[str, Depends(Oauth2_bearer)]):
-    """
-    Dependency function to extract user info from JWT token.
-    Use this with Depends() in other routes.
-    """
-    try:
-        payload = jwt.decode(token, SECRET_KEY, ALGORITHM)
-        username: str = payload.get("username")
-        user_id: int = payload.get("id")
-        role: str = payload.get("role")
-
-        if username is None or user_id is None:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Could not validate credentials",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-
-        return {"username": username, "id": user_id, "role": role}
-
-    except JWTError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Could not validate credentials",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
 
 
 @router.post("/create_user", status_code=status.HTTP_201_CREATED)
@@ -143,7 +72,7 @@ async def create_user(db: db_dependency, create_user_request: CreateUserRequest)
 
 
 @router.post("/token", response_model=Token)
-async def login_for_access_token(
+async def get_token(
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()], db: db_dependency
 ):
     user = await authenticate_user(form_data.username, form_data.password, db)
@@ -159,9 +88,9 @@ async def login_for_access_token(
 
 
 @router.get(
-    "/get_current_user", response_model=UserResponse, status_code=status.HTTP_200_OK
+    "/get_current_user", status_code=status.HTTP_200_OK
 )
-async def get_current_user(current_user: Annotated[dict, Depends(get_current_user)]):
+async def get_user(current_user: user_dependency):
     return {
         "username": current_user["username"],
         "id": current_user["id"],
@@ -169,14 +98,14 @@ async def get_current_user(current_user: Annotated[dict, Depends(get_current_use
     }
 
 
-@router.post("/login_for_id", status_code=status.HTTP_200_OK)
-async def login_for_user_id(
-    form_data: Annotated[OAuth2PasswordRequestForm, Depends()], db: db_dependency
-):
-    user = await authenticate_user(form_data.username, form_data.password, db)
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Could not validate credentials",
-        )
-    return {"user_id": user.user_id}
+# @router.post("/login_for_id", status_code=status.HTTP_200_SOK)
+# async def login_for_user_id(
+#     form_data: Annotated[OAuth2PasswordRequestForm, Depends()], db: db_dependency
+# ):
+#     user = await authenticate_user(form_data.username, form_data.password, db)
+#     if not user:
+#         raise HTTPException(
+#             status_code=status.HTTP_401_UNAUTHORIZED,
+#             detail="Could not validate credentials",
+#         )
+#     return {"user_id": user.user_id}

@@ -1,40 +1,75 @@
-# SmartFarm Project
+# 🚀 SmartFarm: An IoT Platform for Smart Agriculture
 
-SmartFarm is a modular IoT and data management system designed to manage farm devices, sensor data, and user authentication. Built with FastAPI microservices and Docker, it integrates with external systems like MQTT, InfluxDB, and PostgreSQL.
+## 🌟 About The Project
 
-## Table of Contents
-- [Overview](#overview)
-- [Architecture](#architecture)
-- [Services](#services)
-    - [User Service](#user-service)
-    - [Device Service](#device-service)
-    - [Sensor Data Service](#sensor-data-service)
-- [Setup and Installation](#setup-and-installation)
-- [Docker Compose](#docker-compose)
-- [Contributing](#contributing)
-- [License](#license)
+**SmartFarm** is more than just a pet project; it's a complete backend system designed with a microservices architecture to power a smart farming operation. The platform enables real-time data collection from IoT sensors, remote device management (e.g., irrigation systems), and data analysis to boost crop yields.
 
-## Overview
-The SmartFarm project tracks agricultural devices, sensor readings, crop management, and farm operations. It implements:
-- **User Service**: Handles user registration, authentication, and role management with JWT tokens.
-- **Device Service**: Manages device installation, sensor assignments, crop management, and firmware updates.
-- **Sensor Data Service**: Collects sensor data via MQTT, stores time-series data in InfluxDB, and supports simulation and querying.
+**[➡️ Watch the Video Demo](YOUR_VIDEO_LINK_HERE)**
 
-## Architecture
-- **FastAPI Microservices** for high-performance RESTful APIs.
-- **SQLAlchemy ORM** for relational database interactions (SQLite for local testing and PostgreSQL for production).
-- **MQTT Protocol** for real-time sensor data collection.
-- **InfluxDB** for storing and querying time-series data.
-- **Docker** for containerization and deployment orchestration.
+---
 
-## Services
+## 🏗️ System Architecture
+
+The system is built on the asynchronous FastAPI framework and is fully containerized using Docker. Sensor data is ingested via the MQTT protocol and stored in a time-series database (InfluxDB), while user and device metadata is managed in a PostgreSQL database.
+
+![System Architecture Diagram](YOUR_DIAGRAM_LINK_HERE)
+*(**Pro-Tip:** Use a free tool like `draw.io` or `Miro` to create a simple diagram showing the services and how they connect. Upload the image to your repository and link it here.)*
+
+---
+
+## 🔧 Tech Stack
+
+| Domain            | Technologies                                     |
+|-------------------|--------------------------------------------------|
+| **Backend** | Python 3.11, FastAPI, SQLAlchemy, Pydantic       |
+| **Databases** | PostgreSQL (Relational), InfluxDB (Time-Series), SQLite (Testing) |
+| **Messaging** | Mosquitto MQTT Broker                            |
+| **DevOps** | Docker, Docker Compose                           |
+| **Async** | Asyncio, aiohttp, aiomqtt                        |
+
+---
+
+## ✨ Key Features & Technical Highlights
+
+This project was a great opportunity to solve several interesting engineering challenges:
+
+* **✅ Secure Authentication & Authorization:** Developed a robust security layer using **JWT tokens**. Implemented role-based access control (RBAC) to protect endpoints, distinguishing between regular users and administrators.
+* **✅ Real-Time Data Ingestion:** Engineered an asynchronous pipeline with an **MQTT broker** to handle high-throughput data streams from potentially thousands of IoT sensors.
+* **✅ Time-Series Data Management:** Integrated **InfluxDB** to efficiently store, query, and analyze time-series data (e.g., "fetch temperature readings from Sensor X over the last 24 hours").
+* **✅ Resilient Microservices Architecture:** Designed a distributed system by decoupling logic into independent services (**User Service**, **Device Service**). Each service is containerized with **Docker** for isolation and scalability.
+* **✅ Firmware Over-The-Air (FOTA) Updates:** Implemented an endpoint to upload and deploy firmware updates to remote devices.
+
+---
+
+## 🛠️ Getting Started & Local Setup
+
+You can get a local instance up and running easily with Docker.
+
+1.  **Clone the repository:**
+    ```sh
+    git clone https://github.com/arseniyvolkow/IoTSmartFarm.git
+    cd smartfarm
+    ```
+2.  **Configure your environment:**
+    Create a `.env` file in the root directory (you can copy `example.env` as a template) and fill in your credentials for PostgreSQL, InfluxDB, etc.
+3.  **Launch the application:**
+    ```sh
+    docker-compose up --build
+    ```
+    Once the containers are running, the API documentation for each service will be available at:
+    * User Service Docs: `http://localhost:8005/docs`
+    * Device Service Docs: `http://localhost:8001/docs`
+
+---
+
+## 📚 API Endpoints
+
+<details>
+<summary>Click to expand the complete API endpoint list</summary>
 
 ### User Service
-- **Purpose**: Provides authentication (JWT based) and user management functions.
-- **Key Features**:
-    - User registration and role assignment.
-    - Token generation and validation.
-    - Administrative endpoints for managing users.
+- **Purpose**: Provides authentication (JWT-based) and user management functions.
+- **Key Features**: User registration, role assignment, token generation/validation, and administrative user management.
 - **Endpoints**:
     - `POST /auth/create_user` - Creates a new user account.
     - `POST /auth/token` - Authenticates the user and generates a JWT access token.
@@ -44,15 +79,12 @@ The SmartFarm project tracks agricultural devices, sensor readings, crop managem
     - `PUT /user/change_number` - Updates the user's contact number.
     - `GET /admin/get_all_users` - (Admin only) Retrieves a list of all registered users.
     - `PUT /admin/change_users_role` - (Admin only) Modifies the role assigned to a user.
-    - `GET /admin/delete_user/{user_to_delete_id}` - (Admin only) Deletes a user account.
+    - `DELETE /admin/delete_user/{user_to_delete_id}` - (Admin only) Deletes a user account.
 
 ### Device Service
-- **Purpose**: Handles operations related to farm devices, crop management, and overall farm operations.
-- **Key Features**:
-    - CRUD operations for devices, farms, and crops.
-    - Device firmware updates via HTTP.
-    - Association of devices to specific farms.
-- **Endpoints**:
+- **Purpose**: Handles operations related to farm devices, crop management, and overall farm structure.
+- **Key Features**: Full CRUD for devices, farms, and crops. Firmware update handling. Association of devices to farms.
+- **Device Endpoints**:
     - `POST /devices/device` - Registers a new device.
     - `PATCH /devices/device/{device_id}` - Updates the status or configuration of a device.
     - `DELETE /devices/device/{device_id}` - Removes a device from the system.
@@ -61,14 +93,12 @@ The SmartFarm project tracks agricultural devices, sensor readings, crop managem
     - `GET /devices/all-devices` - Lists all devices registered under the current user.
     - `GET /devices/all-devices/{farm_id}` - Lists devices specific to a given farm.
     - `POST /devices/upload_firmware/{device_id}` - Uploads and updates the firmware of a device.
-
 - **Farm Endpoints**:
     - `POST /farms/farm` - Creates a new farm record.
     - `GET /farms/farm/{farm_id}` - Retrieves detailed information about a specific farm.
     - `PUT /farms/farm/{farm_id}` - Updates existing farm information.
     - `PATCH /farms/farm/{farm_id}` - Assigns a crop to the farm.
     - `DELETE /farms/farm/{farm_id}` - Deletes a farm record.
-
 - **Crop Endpoints**:
     - `POST /crop/crop` - Adds a new crop management entry.
     - `GET /crop/сrop/{crop_id}` - Retrieves details about a specific crop management entry.
@@ -78,52 +108,21 @@ The SmartFarm project tracks agricultural devices, sensor readings, crop managem
 
 ### Sensor Data Service
 - **Purpose**: Receives sensor readings through MQTT and stores them in InfluxDB for time-series analysis.
-- **Key Features**:
-    - Subscribes to MQTT topics for real-time sensor data collection.
-    - Parses sensor payloads and writes structured data to InfluxDB.
-    - Provides endpoints to simulate sensor data and query historical time-series data using Flux.
+- **Key Features**: Subscribes to MQTT topics, parses sensor payloads, and provides endpoints to query historical data.
 - **Endpoints**:
     - `GET /health` - Performs a health check on the sensor data service.
-    - `POST /simulate-sensor-data` - Simulates sensor data input.
+    - `POST /simulate-sensor-data` - Simulates sensor data input for testing purposes.
     - `GET /device_data/{device_id}/{sensor_type}/{time}` - Queries time-series data for a specified device and sensor.
 
-## Setup and Installation
+</details>
 
-### Prerequisites
-- Docker and Docker Compose must be installed on your machine.
-- Environment variables configured for MQTT, InfluxDB, PostgreSQL, etc.
+---
 
-### Local Setup
-1. **Clone the Repository:**
-     ```sh
-     git clone https://github.com/yourusername/smartfarm.git
-     cd smartfarm
-     ```
-2. **Configure Environment Variables:**
-     Create a `.env` file with the credentials for MQTT, InfluxDB, and PostgreSQL.
-3. **Run Docker Compose:**
-     ```sh
-     docker-compose up --build
-     ```
-     This command builds and starts the containers:
-     - User Service on port 8005
-     - Device Service on port 8001
-     - Mosquitto (MQTT broker)
-     - InfluxDB
-     - PostgreSQL for the user service
+## 🎯 Future Plans & Roadmap
 
-## Docker Compose
-The `docker-compose.yaml` file orchestrates the various services with these key details:
-- **Volumes:** Persistent data mounting for Mosquitto, InfluxDB, and PostgreSQL.
-- **Service Dependencies:** Device Service depends on User Service.
-- **Ports:** Exposed ports allow inter-service communication and external API access.
+-   [ ] Implement a **Rule Engine** to allow users to create custom automation workflows (e.g., "if soil moisture drops below 30%, turn on sprinklers for 5 minutes").
+-   [ ] Increase test coverage to 80% using **Pytest**.
+-   [ ] Set up a **CI/CD pipeline** with GitHub Actions for automated testing and builds.
 
-## Contributing
-Contributions are welcome! Please follow these steps:
-1. Fork the repository.
-2. Create a new branch with a descriptive name.
-3. Commit your changes with clear messages.
-4. Open a pull request describing your modifications.
+---
 
-## License
-This project is licensed under the MIT License.

@@ -1,7 +1,6 @@
-from fastapi import APIRouter, Depends, Query, Path
-from starlette import status
+from fastapi import APIRouter, Depends, Query, Path, status
 from ..database import get_db
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Annotated, Optional
 from ..utils import get_current_user
 from .crops import CropService
@@ -11,7 +10,7 @@ from ..services.farm_service import FarmService
 router = APIRouter(prefix="/farms", tags=["Farms and Crops management"])
 
 
-db_dependency = Annotated[Session, Depends(get_db)]
+db_dependency = Annotated[AsyncSession, Depends(get_db)]
 
 
 @router.post("/farms", status_code=status.HTTP_201_CREATED)
@@ -29,7 +28,7 @@ async def add_new_farm(
 async def get_all_farms(
     db: db_dependency,
     current_user: Annotated[dict, Depends(get_current_user)],
-    sort_column: str,
+    sort_column: Optional[str] = None,
     cursor: Optional[str] = Query(None),
     limit: Optional[int] = Query(10, le=200),
 ):
@@ -61,7 +60,7 @@ async def update_farm_info(
 ):
     farm_service = FarmService(db)
     farm_entity = await farm_service.get(farm_id)
-    farm_service.check_access(farm_entity, current_user["id"])
+    await farm_service.check_access(farm_entity, current_user["id"])
     await farm_service.update(farm_entity, **farm.model_dump())
     return {"details": f"Farm {farm_entity.farm_id} info was updated!"}
 

@@ -8,13 +8,14 @@ from ..models import Devices, Farms
 from ..utils import get_current_user
 from sqlalchemy import select
 from ..services.device_service import DeviceService
-from ..schemas import AddNewDevice, CursorPagination
+from ..schemas import AddNewDevice, DevicePagination
 from ..services.farm_service import FarmService
+from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter(prefix="/devices", tags=["Devices"])
 
 
-db_dependency = Annotated[Session, Depends(get_db)]
+db_dependency = Annotated[AsyncSession, Depends(get_db)]
 
 
 @router.post(
@@ -22,56 +23,66 @@ db_dependency = Annotated[Session, Depends(get_db)]
     status_code=status.HTTP_201_CREATED,
 )
 async def new_device(db: db_dependency, device_data: AddNewDevice):
-    async with httpx.AsyncClient() as client:
-        try:
-            user_service_response = await client.post(
-                "http://user_service:8005/auth/login_for_id",
-                data={
-                    "username": device_data.username,
-                    "password": device_data.password,
-                },
-            )
-            if user_service_response.status_code != 200:
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Incorrect login data",
-                )
-
-            user_info = user_service_response.json()
-            user_id = user_info.get("user_id")
-
-            device_service = DeviceService(db)
-            device_entity = await device_service.create(user_id, device_data)
-            return {"status": "success", "device_id": device_entity.unique_device_id}
-
-        except httpx.RequestError:
-            return {"status": "error", "message": "User service unavailable!"}
+    try:
+        device_service = DeviceService(db)
+        result = await device_service.create(device_data)  # This now returns a dict
+        return {
+            "status": "success", 
+            "device_id": result["device_id"]  # Use the UUID primary key
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"An unexpected error occurred: {str(e)}"
+        )
 
 
 @router.get(
-    "/unassigned-devices",
+    "/list-of-new-devices",
     status_code=status.HTTP_200_OK,
-    response_model=CursorPagination,
+    response_model=DevicePagination,
 )
-async def get_unassigned_sensor(
+async def get_list_of_new_devices(
     db: db_dependency,
-    sort_column: str,
     current_user: Annotated[dict, Depends(get_current_user)],
+    sort_column: Optional[str] = None,
     cursor: Optional[str] = Query(None),
     limit: Optional[int] = Query(10, ge=10, le=200),
 ):
     device_service = DeviceService(db)
-    items, next_cursor = await device_service.get_unassigned_devices(
+    items, next_cursor = await device_service.get_unassigned_to_user_devices(
+        sort_column, cursor, limit
+    )
+    return {"items": items, "next_cursor": next_cursor}
+
+
+@router.get(
+    "/unassigned-to-farm-devices",
+    status_code=status.HTTP_200_OK,
+    response_model=DevicePagination,
+)
+async def get_unassigned_sensor(
+    db: db_dependency,
+    current_user: Annotated[dict, Depends(get_current_user)],
+    sort_column: Optional[str] = None,
+    cursor: Optional[str] = Query(None),
+    limit: Optional[int] = Query(10, ge=10, le=200),
+):
+    device_service = DeviceService(db)
+    items, next_cursor = await device_service.get_unassigned_to_farm_devices(
         current_user["id"], sort_column, cursor, limit
     )
     return {"items": items, "next_cursor": next_cursor}
 
 
+
 @router.get("/all-devices", status_code=status.HTTP_200_OK)
 async def all_devices(
     db: db_dependency,
-    sort_column: str,
     current_user: Annotated[dict, Depends(get_current_user)],
+    sort_column: Optional[str] = None,
     cursor: Optional[str] = Query(None),
     limit: Optional[int] = Query(10, ge=10, le=200),
 ):
@@ -85,8 +96,8 @@ async def all_devices(
 @router.get("/all-devices/{farm_id}", status_code=status.HTTP_200_OK)
 async def farm_devices(
     db: db_dependency,
-    sort_column: str,
     current_user: Annotated[dict, Depends(get_current_user)],
+    sort_column: Optional[str] = None,
     farm_id: str = Path(max_length=100),
     cursor: Optional[str] = Query(None),
     limit: Optional[int] = Query(10, ge=10, le=200),
@@ -115,6 +126,19 @@ async def assign_device(
     device_entity = await device_service.get(device_id)
     await device_service.check_access(device_entity, current_user["id"])
     await device_service.assign_device_to_farm(device_entity, farm_entity)
+    return {"details": "Device assigned to farm!"}
+
+
+@router.patch("/assign-user-to-device", status_code=status.HTTP_200_OK)
+async def assign_user_to_device(
+    db: db_dependency,
+    current_user: Annotated[dict, Depends(get_current_user)],
+    device_id: str = Query(max_length=100),
+):
+    device_service = DeviceService(db)
+    device_entity = await device_service.get(device_id)
+    if device_entity.user_id == None:
+        device_service.update(device_entity, user_id=current_user["id"])
     return {"details": "Device assigned to farm!"}
 
 

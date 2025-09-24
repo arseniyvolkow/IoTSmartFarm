@@ -52,6 +52,12 @@ class BaseService(abc.ABC):
     def __init__(self, db: AsyncSession):
         self.db = db
 
+    async def get(self):
+        pass
+
+    async def create(self):
+        pass
+
     async def check_access(self, entity, user_id):
         if entity.user_id != user_id:
             raise HTTPException(
@@ -71,48 +77,36 @@ class BaseService(abc.ABC):
         self,
         session,
         query,
-        sort_column: Optional[str] = None,
+        sort_column: str,
         cursor: Optional[str] = None,
         limit: int = 10,
     ):
         try:
             model = query.column_descriptions[0]["type"]
-            sort_key_name = sort_column if sort_column else "created_at"
-            
             try:
-                sort_key = getattr(model, sort_key_name)
+                sort_key = getattr(model, sort_column)
             except AttributeError:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Invalid sort column: {sort_key_name}",
+                    detail=f"Invalid sort column: {sort_column}",
                 )
-    
             if cursor:
-                # --- FIX IS HERE ---
-                # Determine the type of the column and cast the cursor
-                column_type = type(getattr(model, sort_key_name))
-                if column_type is int:
-                    cursor_value = int(cursor)
-                elif column_type is float:
-                    cursor_value = float(cursor)
-                else: # Default to string for types like str or datetime
-                    cursor_value = cursor
+                query = query.filter(sort_key > cursor)
 
-                query = query.filter(sort_key > cursor_value)
-    
             query = query.order_by(sort_key)
-    
+
+            # Execute query asynchronously with the session
             result = await session.execute(query.limit(limit + 1))
             items = result.scalars().all()
-    
+
             has_more = len(items) > limit
             items = items[:limit]
-    
+
             if has_more:
-                next_cursor = getattr(items[-1], sort_key_name)
+                next_cursor = getattr(items[-1], sort_column)
             else:
                 next_cursor = None
-    
+
             return items, next_cursor
         except Exception:
             raise HTTPException(

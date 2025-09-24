@@ -3,13 +3,16 @@ from starlette import status
 from ..database import get_db
 from typing import Annotated, List
 from sqlalchemy.ext.asyncio import AsyncSession
-from .auth import get_current_user
+from ..utils import user_dependency, db_dependency
 from ..models import Users
 from pydantic import BaseModel
 from sqlalchemy import select, delete
+from ..schemas import UserResponse, NewRole
 
 
-def check_admin_permissions(current_user: Annotated[dict, Depends(get_current_user)]):
+
+
+def check_admin_permissions(current_user: user_dependency):
     """
     Dependency to ensure current user has admin role.
     """
@@ -25,28 +28,6 @@ router = APIRouter(
 )
 
 
-db_dependency = Annotated[AsyncSession, Depends(get_db)]
-user_dependency = Annotated[dict, Depends(get_current_user)]
-
-
-class New_role(BaseModel):
-    id_of_user: int
-    role: str
-
-
-class UserResponse(BaseModel):
-    """Response model for user data"""
-
-    user_id: int
-    username: str
-    email: str
-    role: str
-    contact_number: str = None
-
-    class Config:
-        from_attributes = True
-
-
 @router.get(
     "/get_all_users", response_model=List[UserResponse], status_code=status.HTTP_200_OK
 )
@@ -59,7 +40,7 @@ async def get_all_users(db: db_dependency, user: user_dependency):
 
 @router.put("/change_users_role", status_code=status.HTTP_204_NO_CONTENT)
 async def change_users_role(
-    db: db_dependency, user: user_dependency, change_user: New_role
+    db: db_dependency, user: user_dependency, change_user: NewRole
 ):
     query = select(Users).filter(Users.id == change_user.id_of_user)
     result = await db.execute(query)

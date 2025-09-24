@@ -8,11 +8,11 @@ from ..models import Crops
 from sqlalchemy import select
 from ..schemas import CropManagmentModel
 from ..services.crops_service import CropService
-
+from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter(prefix="/crop", tags=["Crops"])
 
-db_dependency = Annotated[Session, Depends(get_db)]
+db_dependency = Annotated[AsyncSession, Depends(get_db)]
 
 
 @router.post("/crops", status_code=status.HTTP_200_OK)

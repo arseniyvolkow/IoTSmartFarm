@@ -1,25 +1,65 @@
 from typing import Any, Optional
-from pydantic import BaseModel
-from datetime import date
+from pydantic import BaseModel, ConfigDict
+from datetime import date, datetime
+from typing import Optional, List, TypeVar, Generic
+from enum import Enum as PyEnum
+
+
+T = TypeVar("T")
+
 
 # Device Models
+class ActuatorState(PyEnum):
+    ON = "on"
+    OFF = "off"
+    PAUSED = "paused"
+    ERROR = "error"
+    IDLE = "idle"
 
 
-class SensorInfo(BaseModel):
+class SensorBase(BaseModel):
+    """Base model for shared sensor fields."""
+
     sensor_type: str
     units_of_measure: str
     max_value: float
     min_value: float
 
 
+class SensorRead(SensorBase):
+    """Model for reading a sensor from the database."""
+
+    sensor_id: str
+    device_id: str
+    created_at: datetime
+
+    # This setting is necessary for SQLAlchemy ORM compatibility
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ActuatorBase(BaseModel):
+    actuator_type: str
+    current_state: ActuatorState
+    available_states: dict
+
+
+class ActuatorRead(ActuatorBase):
+    actuator_id: str
+    device_id: str
+    created_at: datetime
+    updated_at: datetime
+
+    # This setting is necessary for SQLAlchemy ORM compatibility
+    model_config = ConfigDict(from_attributes=True)
+
+
 class AddNewDevice(BaseModel):
-    username: str
-    password: str
     unique_device_id: str
     device_ip_address: str
     model_number: str
     firmware_version: str
-    sensors_list: list[SensorInfo]
+    sensors_list: Optional[List[SensorBase]] = None
+    actuators_list: Optional[List[ActuatorBase]] = None
 
 
 class UpdateDeviceInfo(BaseModel):
@@ -27,21 +67,17 @@ class UpdateDeviceInfo(BaseModel):
 
 
 class DeviceSchema(BaseModel):
+    device_id: str
     unique_device_id: str
-    user_id: int
-    farm_id: str
+    user_id: Optional[str] = None
+    farm_id: Optional[str] = None
     device_ip_address: str
     model_number: str
     firmware_version: str
     status: str
 
 
-class CursorPagination(BaseModel):
-    items: list[DeviceSchema]
-    next_cursor: Optional[str] = None
-
-
-# farms models
+# Farms models
 
 
 class FarmModel(BaseModel):
@@ -66,8 +102,19 @@ class CropManagmentModel(BaseModel):
     crop_type_id: str
 
 
-#Error
+# Error
+
 
 class ErrorResponse(BaseModel):
     message: str
     details: Optional[Any] = None
+
+
+class CursorPagination(BaseModel, Generic[T]):
+    items: List[T]
+    next_cursor: Optional[str] = None
+
+
+DevicePagination = CursorPagination[DeviceSchema]
+FarmPagination = CursorPagination[FarmModel]
+ActuatorPagination = CursorPagination[ActuatorBase]
