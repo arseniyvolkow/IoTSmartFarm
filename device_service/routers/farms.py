@@ -1,33 +1,28 @@
-from fastapi import APIRouter, Depends, Query, Path, status
-from ..database import get_db
-from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Annotated, Optional
-from ..utils import get_current_user
+from fastapi import APIRouter, Query, Path, status
+from typing import Optional
 from .crops import CropService
-from ..schemas import FarmModel
+from ..schemas import FarmCreate, FarmPagination, FarmUpdate, FarmRead
 from ..services.farm_service import FarmService
+from ..utils import db_dependency, user_dependency
 
 router = APIRouter(prefix="/farms", tags=["Farms and Crops management"])
-
-
-db_dependency = Annotated[AsyncSession, Depends(get_db)]
 
 
 @router.post("/farms", status_code=status.HTTP_201_CREATED)
 async def add_new_farm(
     db: db_dependency,
-    current_user: Annotated[dict, Depends(get_current_user)],
-    farm: FarmModel,
+    current_user: user_dependency,
+    farm: FarmCreate,
 ):
     farm_service = FarmService(db)
     await farm_service.create(farm, current_user["id"])
     return {"message": "Farm added successfully"}
 
 
-@router.get("/farms", status_code=status.HTTP_200_OK)
+@router.get("/farms", status_code=status.HTTP_200_OK, response_model=FarmPagination)
 async def get_all_farms(
     db: db_dependency,
-    current_user: Annotated[dict, Depends(get_current_user)],
+    current_user: user_dependency,
     sort_column: Optional[str] = None,
     cursor: Optional[str] = Query(None),
     limit: Optional[int] = Query(10, le=200),
@@ -39,10 +34,10 @@ async def get_all_farms(
     return {"items": items, "next_cursor": next_cursor}
 
 
-@router.get("/farm/{farm_id}")
+@router.get("/farm/{farm_id}", status_code=status.HTTP_200_OK, response_model=FarmRead)
 async def get(
     db: db_dependency,
-    current_user: Annotated[dict, Depends(get_current_user)],
+    current_user: user_dependency,
     farm_id: str = Path(max_length=100),
 ):
     farm_service = FarmService(db)
@@ -54,8 +49,8 @@ async def get(
 @router.put("/farm/{farm_id}")
 async def update_farm_info(
     db: db_dependency,
-    farm: FarmModel,
-    current_user: Annotated[dict, Depends(get_current_user)],
+    farm: FarmUpdate,
+    current_user: user_dependency,
     farm_id: str = Path(max_length=100),
 ):
     farm_service = FarmService(db)
@@ -68,7 +63,7 @@ async def update_farm_info(
 @router.patch("/farm/{farm_id}", status_code=status.HTTP_200_OK)
 async def assign_crop_to_farm(
     db: db_dependency,
-    current_user: Annotated[dict, Depends(get_current_user)],
+    current_user: user_dependency,
     farm_id: str = Path(max_length=100),
     crop_id: str = Query(max_length=100),
 ):
@@ -84,7 +79,7 @@ async def assign_crop_to_farm(
 @router.delete("/farm/{farm_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_farm(
     db: db_dependency,
-    current_user: Annotated[dict, Depends(get_current_user)],
+    current_user: user_dependency,
     farm_id: str = Path(max_length=100),
 ):
     farm_service = FarmService(db)

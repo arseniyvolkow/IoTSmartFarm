@@ -1,12 +1,13 @@
 from ..models import Actuators, Devices  # Import Devices for the join
 from ..utils import BaseService
 from sqlalchemy.orm import joinedload
-from sqlalchemy import select, insert
+from sqlalchemy import select, update
 from typing import List, Optional
 from ..schemas import ActuatorRead, ActuatorBase
 from fastapi import HTTPException, status, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from ..database import get_db
+
 
 class ActuatorService(BaseService):
     def __init__(
@@ -36,8 +37,7 @@ class ActuatorService(BaseService):
         # Use the ORM's add_all for consistency.
         self.db.add_all(actuator_entities)
 
-
-    async def get(self, actuator_id: str) -> ActuatorRead:
+    async def get(self, actuator_id: str) -> Actuators:
         query = (
             select(Actuators)
             .filter(Actuators.actuator_id == actuator_id)
@@ -49,26 +49,34 @@ class ActuatorService(BaseService):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Actuator not found"
             )
-        return ActuatorRead.model_validate(actuator)
+        return actuator
 
     async def get_all_actuators(
-        self,
-        user_id: str, # Assuming user_id is a string based on your models
-        sort_column: str,
-        cursor: Optional[str] = None,
-        limit: Optional[int] = 10,
+    self,
+    user_id: str,
+    sort_column: str,
+    cursor: Optional[str] = None,
+    limit: Optional[int] = 10,
     ) -> tuple[list[ActuatorRead], Optional[str]]:
-        # Corrected query: join with Devices to filter by user_id
         query = (
             select(Actuators)
-            .join(Devices, Actuators.device_id == Devices.unique_device_id)
+            .join(Devices, Actuators.device_id == Devices.device_id)
             .filter(Devices.user_id == user_id)
         )
-
         items, next_cursor = await self.cursor_paginate(
             self.db, query, sort_column, cursor, limit
         )
-
         pydantic_items = [ActuatorRead.model_validate(item) for item in items]
-
         return pydantic_items, next_cursor
+
+    
+    async def assign_user_to_device_actuators(self, device_id: str, user_id: str):
+    # Update all actuators for this device
+        query = (
+            update(Actuators)
+            .where(Actuators.device_id == device_id)
+            .values(user_id=user_id)
+        )
+
+        await self.db.execute(query)
+        await self.db.commit()

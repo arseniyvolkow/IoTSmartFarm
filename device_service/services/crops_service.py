@@ -1,14 +1,14 @@
 from fastapi import HTTPException
 from starlette import status
 from ..utils import BaseService
-from ..models import CropManagment
+from ..models import CropManagement
 from sqlalchemy import select
-from ..schemas import CropManagmentModel
+from ..schemas import CropManagmentCreate
 
 
 class CropService(BaseService):
     async def get(self, crop_id):
-        query = select(CropManagment).filter(CropManagment.crop_id == crop_id)
+        query = select(CropManagement).filter(CropManagement.crop_id == crop_id)
         result = await self.db.execute(query)
         crop_entity = result.scalar_one_or_none()
         if not crop_entity:
@@ -17,13 +17,12 @@ class CropService(BaseService):
             )
         return crop_entity
 
-    async def create(self, crop: CropManagmentModel, user_id):
+    async def create(self, crop: CropManagmentCreate, user_id):
         crop_data_dict = crop.model_dump()
         crop_data_dict["user_id"] = user_id
-        crop_entity = CropManagment(**crop_data_dict)
+        crop_entity = CropManagement(**crop_data_dict)
         self.db.add(crop_entity)
         await self.db.commit()
-
 
     async def assign_crop_to_farm(self, farm_entity, crop_entity):
         farm_entity.farm_id = crop_entity.farm_id

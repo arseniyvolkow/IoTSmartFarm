@@ -1,35 +1,37 @@
-from fastapi import APIRouter, HTTPException, Depends, Query, Path
-from starlette import status
-from ..database import get_db
-from sqlalchemy.orm import Session
-from typing import Annotated, Optional
-from ..utils import get_current_user
-from ..models import Crops
+from fastapi import APIRouter, HTTPException, Query, Path, status
+from typing import Optional
+from ..models import Crops, CropManagement
 from sqlalchemy import select
-from ..schemas import CropManagmentModel
+from ..schemas import (
+    CropManagmentCreate,
+    CropManagmentUpdate,
+    CropManagmentRead,
+    CropManagmentPagination,
+    CropTypesPagination,
+)
 from ..services.crops_service import CropService
-from sqlalchemy.ext.asyncio import AsyncSession
+from ..utils import db_dependency, user_dependency
 
 router = APIRouter(prefix="/crop", tags=["Crops"])
-
-db_dependency = Annotated[AsyncSession, Depends(get_db)]
 
 
 @router.post("/crops", status_code=status.HTTP_200_OK)
 async def add_new_crop(
     db: db_dependency,
-    crop: CropManagmentModel,
-    current_user: Annotated[dict, Depends(get_current_user)],
+    crop: CropManagmentCreate,
+    current_user: user_dependency,
 ):
     crop_service = CropService(db)
     await crop_service.create(crop, current_user["id"])
     return {"message": "Crop added successfully"}
 
 
-@router.get("/crop/{crop_id}", status_code=status.HTTP_200_OK)
+@router.get(
+    "/crop/{crop_id}", status_code=status.HTTP_200_OK, response_model=CropManagmentRead
+)
 async def get_info_about_crop(
     db: db_dependency,
-    current_user: Annotated[dict, Depends(get_current_user)],
+    current_user: user_dependency,
     crop_id: str = Path(max_length=100),
 ):
     crop_service = CropService(db)
@@ -40,9 +42,9 @@ async def get_info_about_crop(
 
 @router.put("/crop/{crop_id}", status_code=status.HTTP_200_OK)
 async def change_crop_info(
-    crop_data: CropManagmentModel,
+    crop_data: CropManagmentUpdate,
     db: db_dependency,
-    current_user: Annotated[dict, Depends(get_current_user)],
+    current_user: user_dependency,
     crop_id: str = Path(max_length=100),
 ):
     crop_service = CropService(db)
@@ -55,7 +57,7 @@ async def change_crop_info(
 @router.post("/crop_types", status_code=status.HTTP_201_CREATED)
 async def new_crop_type(
     db: db_dependency,
-    current_user: Annotated[dict, Depends(get_current_user)],
+    current_user: user_dependency,
     crop_name: str = Query(max_length=100),
 ):
     query = select(Crops).filter(Crops.crop_name == crop_name)
@@ -71,10 +73,30 @@ async def new_crop_type(
     return {"details": f'New crop type "{crop_name}" added successfully!'}
 
 
-@router.get("/crop_types", status_code=status.HTTP_200_OK)
+@router.get(
+    "/all", status_code=status.HTTP_200_OK, response_model=CropManagmentPagination
+)
+async def all_crops(
+    db: db_dependency,
+    current_user: user_dependency,
+    sort_column: Optional[str] = None,
+    cursor: Optional[str] = Query(None),
+    limit: Optional[int] = Query(10, ge=10, le=200),
+):
+    query = select(CropManagement)
+    crop_service = CropService(db)
+    items, next_cursor = await crop_service.cursor_paginate(
+        db, query, sort_column, cursor, limit
+    )
+    return {"items": items, "next_cursor": next_cursor}
+
+
+@router.get(
+    "/crop_types", status_code=status.HTTP_200_OK, response_model=CropTypesPagination
+)
 async def all_crop_types(
     db: db_dependency,
-    sort_column: str,
+    sort_column: Optional[str] = None,
     cursor: Optional[str] = Query(None),
     limit: Optional[int] = Query(10, ge=10, le=200),
 ):

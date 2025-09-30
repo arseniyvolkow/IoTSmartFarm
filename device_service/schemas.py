@@ -1,20 +1,11 @@
 from typing import Any, Optional
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 from datetime import date, datetime
 from typing import Optional, List, TypeVar, Generic
 from enum import Enum as PyEnum
-
+from .enums import ActuatorState, DeviceStatus
 
 T = TypeVar("T")
-
-
-# Device Models
-class ActuatorState(PyEnum):
-    ON = "on"
-    OFF = "off"
-    PAUSED = "paused"
-    ERROR = "error"
-    IDLE = "idle"
 
 
 class SensorBase(BaseModel):
@@ -26,61 +17,94 @@ class SensorBase(BaseModel):
     min_value: float
 
 
-class SensorRead(SensorBase):
-    """Model for reading a sensor from the database."""
+class SensorCreate(SensorBase):
+    device_id: str
 
+
+class SensorRead(SensorBase):
     sensor_id: str
     device_id: str
+    user_id: Optional[str] = None
     created_at: datetime
-
-    # This setting is necessary for SQLAlchemy ORM compatibility
     model_config = ConfigDict(from_attributes=True)
 
 
+class SensorUpdate(BaseModel):
+    sensor_type: Optional[str] = None
+    units_of_measure: Optional[str] = None
+    max_value: Optional[float] = None
+    min_value: Optional[float] = None
+
+
+# Actuators Models
+
 class ActuatorBase(BaseModel):
     actuator_type: str
-    current_state: ActuatorState
     available_states: dict
-
+    current_state: ActuatorState = ActuatorState.OFF
+    
+    model_config = ConfigDict(
+        from_attributes=True,
+        use_enum_values=True,
+    )
 
 class ActuatorRead(ActuatorBase):
     actuator_id: str
     device_id: str
+    user_id: Optional[str] = None
     created_at: datetime
     updated_at: datetime
+    
 
-    # This setting is necessary for SQLAlchemy ORM compatibility
-    model_config = ConfigDict(from_attributes=True)
+class ActuatorUpdate(BaseModel):
+    current_state: Optional[ActuatorState] = None
+    actuator_type: Optional[str] = None
+    available_states: Optional[dict] = None
+    user_id: Optional[str] = None
+    device_id: Optional[str] = None
 
 
-class AddNewDevice(BaseModel):
+class ActuatorCreate(ActuatorBase):
+    device_id: str
+
+
+# Device Models
+
+class DeviceBase(BaseModel):
     unique_device_id: str
     device_ip_address: str
     model_number: str
     firmware_version: str
+
+
+class DeviceCreate(DeviceBase):
     sensors_list: Optional[List[SensorBase]] = None
     actuators_list: Optional[List[ActuatorBase]] = None
 
 
-class UpdateDeviceInfo(BaseModel):
-    status: str
-
-
-class DeviceSchema(BaseModel):
+class DeviceRead(DeviceBase):
     device_id: str
-    unique_device_id: str
     user_id: Optional[str] = None
     farm_id: Optional[str] = None
-    device_ip_address: str
-    model_number: str
-    firmware_version: str
-    status: str
+    created_at: datetime
+    sensors: List[SensorRead]
+    actuators: List[ActuatorRead]
+    model_config = ConfigDict(from_attributes=True)
+
+
+class DeviceUpdate(BaseModel):
+    device_ip_address: Optional[str] = None
+    model_number: Optional[str] = None
+    firmware_version: Optional[str] = None
+    status: Optional[DeviceStatus] = None
+
+    # Allows assigning a device to a new user or farm later
+    user_id: Optional[str] = None
+    farm_id: Optional[str] = None
 
 
 # Farms models
-
-
-class FarmModel(BaseModel):
+class FarmBase(BaseModel):
     """
     Represents the data model for a farm, including its name, total area, location,
     and an optional crop. Used for validating and transferring farm-related data.
@@ -89,17 +113,62 @@ class FarmModel(BaseModel):
     farm_name: str
     total_area: int
     location: str
-    crop: Optional[str] = None
 
 
-# Crops models
+class FarmRead(FarmBase):
+    farm_id: str
+    
 
 
-class CropManagmentModel(BaseModel):
+class FarmCreate(FarmBase):
+    pass
+
+
+class FarmUpdate(BaseModel):
+    farm_name: Optional[str] = None
+    total_area: Optional[int] = None
+    location: Optional[str] = None
+
+
+
+# CropManagment models
+
+
+class CropManagmentBase(BaseModel):
     planting_date: date
     expected_harvest_date: date
     current_grow_stage: str
+
+
+class CropManagmentRead(CropManagmentBase):
+    crop_id: str
+    farm_id: str
+
+class CropManagmentCreate(CropManagmentBase):
     crop_type_id: str
+    farm_id:str
+
+
+class CropManagmentUpdate(BaseModel):
+    planting_date: Optional[date] = None
+    expected_harvest_date: Optional[date] = None
+    current_grow_stage: Optional[str] = None
+
+
+# Crop models
+
+
+class CropBase(BaseModel):
+    crop_name: str
+
+
+class CropCreate(CropBase):
+    pass
+
+
+class CropRead(CropBase):
+    crop_id: str
+    model_config = ConfigDict(from_attributes=True) 
 
 
 # Error
@@ -115,6 +184,9 @@ class CursorPagination(BaseModel, Generic[T]):
     next_cursor: Optional[str] = None
 
 
-DevicePagination = CursorPagination[DeviceSchema]
-FarmPagination = CursorPagination[FarmModel]
-ActuatorPagination = CursorPagination[ActuatorBase]
+DevicePagination = CursorPagination[DeviceRead]
+SensorPagination = CursorPagination[SensorRead]
+ActuatorPagination = CursorPagination[ActuatorRead]
+FarmPagination = CursorPagination[FarmRead]
+CropManagmentPagination = CursorPagination[CropManagmentRead]
+CropTypesPagination = CursorPagination[CropRead]

@@ -1,28 +1,23 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, Path, UploadFile, File
-from ..database import get_db
-from sqlalchemy.orm import Session
-from typing import Annotated, Optional
+from fastapi import APIRouter, HTTPException, Query, Path, UploadFile, File
+from typing import Optional
 import httpx
 from starlette import status
-from ..models import Devices, Farms
-from ..utils import get_current_user
-from sqlalchemy import select
 from ..services.device_service import DeviceService
-from ..schemas import AddNewDevice, DevicePagination
+from ..schemas import DeviceCreate, DevicePagination
 from ..services.farm_service import FarmService
-from sqlalchemy.ext.asyncio import AsyncSession
+from ..services.actuators_service import ActuatorService
+from ..services.sensor_service import SensorService
+from ..utils import db_dependency, user_dependency
+
 
 router = APIRouter(prefix="/devices", tags=["Devices"])
-
-
-db_dependency = Annotated[AsyncSession, Depends(get_db)]
 
 
 @router.post(
     "/device",
     status_code=status.HTTP_201_CREATED,
 )
-async def new_device(db: db_dependency, device_data: AddNewDevice):
+async def new_device(db: db_dependency, device_data: DeviceCreate):
     try:
         device_service = DeviceService(db)
         result = await device_service.create(device_data)  # This now returns a dict
@@ -46,7 +41,7 @@ async def new_device(db: db_dependency, device_data: AddNewDevice):
 )
 async def get_list_of_new_devices(
     db: db_dependency,
-    current_user: Annotated[dict, Depends(get_current_user)],
+    current_user: user_dependency,
     sort_column: Optional[str] = None,
     cursor: Optional[str] = Query(None),
     limit: Optional[int] = Query(10, ge=10, le=200),
@@ -65,7 +60,7 @@ async def get_list_of_new_devices(
 )
 async def get_unassigned_sensor(
     db: db_dependency,
-    current_user: Annotated[dict, Depends(get_current_user)],
+    current_user: user_dependency,
     sort_column: Optional[str] = None,
     cursor: Optional[str] = Query(None),
     limit: Optional[int] = Query(10, ge=10, le=200),
@@ -78,10 +73,10 @@ async def get_unassigned_sensor(
 
 
 
-@router.get("/all-devices", status_code=status.HTTP_200_OK)
+@router.get("/all-devices", status_code=status.HTTP_200_OK,response_model=DevicePagination)
 async def all_devices(
     db: db_dependency,
-    current_user: Annotated[dict, Depends(get_current_user)],
+    current_user: user_dependency,
     sort_column: Optional[str] = None,
     cursor: Optional[str] = Query(None),
     limit: Optional[int] = Query(10, ge=10, le=200),
@@ -93,10 +88,10 @@ async def all_devices(
     return {"items": items, "next_cursor": next_cursor}
 
 
-@router.get("/all-devices/{farm_id}", status_code=status.HTTP_200_OK)
+@router.get("/all-devices/{farm_id}", status_code=status.HTTP_200_OK,response_model=DevicePagination)
 async def farm_devices(
     db: db_dependency,
-    current_user: Annotated[dict, Depends(get_current_user)],
+    current_user: user_dependency,
     sort_column: Optional[str] = None,
     farm_id: str = Path(max_length=100),
     cursor: Optional[str] = Query(None),
@@ -115,7 +110,7 @@ async def farm_devices(
 @router.patch("/assign-device-to-farm", status_code=status.HTTP_200_OK)
 async def assign_device(
     db: db_dependency,
-    current_user: Annotated[dict, Depends(get_current_user)],
+    current_user: user_dependency,
     device_id: str = Query(max_length=100),
     farm_id: str = Query(max_length=100),
 ):
@@ -132,20 +127,31 @@ async def assign_device(
 @router.patch("/assign-user-to-device", status_code=status.HTTP_200_OK)
 async def assign_user_to_device(
     db: db_dependency,
-    current_user: Annotated[dict, Depends(get_current_user)],
+    current_user: user_dependency,
     device_id: str = Query(max_length=100),
 ):
     device_service = DeviceService(db)
     device_entity = await device_service.get(device_id)
+    
     if device_entity.user_id == None:
-        device_service.update(device_entity, user_id=current_user["id"])
-    return {"details": "Device assigned to farm!"}
+        # Update the device with user_id
+        await device_service.update(device_entity, user_id=current_user["id"])
+        
+        # Update all sensors associated with this device (if sensors have user_id field)
+        sensor_service = SensorService(db)
+        await sensor_service.assign_user_to_device_sensors(device_id, current_user["id"])
+        
+        # Update all actuators associated with this device (if actuators have user_id field)  
+        actuator_service = ActuatorService(db)
+        await actuator_service.assign_user_to_device_actuators(device_id, current_user["id"])
+    
+    return {"details": "Device assigned to user!"}
 
 
 @router.patch("/device/{device_id}", status_code=status.HTTP_200_OK)
 async def update_device_info(
     db: db_dependency,
-    current_user: Annotated[dict, Depends(get_current_user)],
+    current_user: user_dependency,
     new_status: str = Query(max_length=15, regex="^(active|inactive|maintenance)$"),
     device_id: str = Path(max_length=250),
 ):
@@ -159,7 +165,7 @@ async def update_device_info(
 @router.delete("/device/{device_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_device(
     db: db_dependency,
-    current_user: Annotated[dict, Depends(get_current_user)],
+    current_user: user_dependency,
     device_id: str = Path(max_length=250),
 ):
     device_service = DeviceService(db)
@@ -171,7 +177,7 @@ async def delete_device(
 @router.post("/upload_firmware/{device_id}", status_code=status.HTTP_200_OK)
 async def device_firmware_update(
     db: db_dependency,
-    current_user: Annotated[dict, Depends(get_current_user)],
+    current_user: user_dependency,
     file: UploadFile = File(...),
     device_id: str = Path(max_length=100),
 ):

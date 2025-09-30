@@ -1,12 +1,13 @@
-from ..models import Sensors
+from ..models import Sensors, Devices
 from ..utils import BaseService
 from sqlalchemy.orm import joinedload
-from sqlalchemy import select, insert
+from sqlalchemy import select, update
 from typing import List, Optional
 from ..schemas import SensorBase, SensorRead
 from fastapi import HTTPException, status, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from ..database import get_db
+
 
 class SensorService(BaseService):
     def __init__(
@@ -15,10 +16,7 @@ class SensorService(BaseService):
     ):
         super().__init__(db)
 
-
-    def add_sensors_to_session(
-        self, device_id: str, sensors_list: List[SensorBase]
-    ):
+    def add_sensors_to_session(self, device_id: str, sensors_list: List[SensorBase]):
         """
         Creates sensor ORM objects and stages them for insertion using db.add_all().
         This method does NOT commit the transaction.
@@ -38,10 +36,10 @@ class SensorService(BaseService):
         ]
         self.db.add_all(sensor_entities)
 
-    async def get(self, device_id: str) -> SensorRead:
+    async def get(self, sensor_id: str) -> Sensors:
         query = (
             select(Sensors)
-            .filter(Sensors.unique_device_id == device_id)
+            .filter(Sensors.sensor_id == sensor_id)
             .options(joinedload(Sensors.device))
         )
         result = await self.db.execute(query)
@@ -50,24 +48,37 @@ class SensorService(BaseService):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Device not found"
             )
-        return SensorRead.model_validate(sensor)
+        return sensor
 
     async def get_all_sensors(
         self,
-        user_id: int,
+        user_id: str,  # Changed from int to str to match actuator service
         sort_column: str,
         cursor: Optional[str] = None,
         limit: Optional[int] = 10,
     ) -> tuple[list[SensorRead], Optional[str]]:
-        # This query is correct because it selects from the Sensors model
-        query = select(Sensors).filter(Sensors.user_id == user_id)
-
+        # Updated query to join with Devices to filter by user_id (same pattern as ActuatorService)
+        query = (
+            select(Sensors)
+            .join(Devices, Sensors.device_id == Devices.device_id)
+            .filter(Devices.user_id == user_id)
+        )
+        
         items, next_cursor = await self.cursor_paginate(
             self.db, query, sort_column, cursor, limit
         )
-
+        
         # Convert the list of SQLAlchemy objects to a list of Pydantic models
-        # Use a list comprehension for efficient conversion
         pydantic_items = [SensorRead.model_validate(item) for item in items]
-
         return pydantic_items, next_cursor
+
+
+    async def assign_user_to_device_sensors(self, device_id: str, user_id: str):
+        query = (
+            update(Sensors)
+            .where(Sensors.device_id == device_id)
+            .values(user_id=user_id)
+        )
+
+        await self.db.execute(query)
+        await self.db.commit()

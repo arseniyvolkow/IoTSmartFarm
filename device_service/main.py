@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from .models import Base
 from .database import engine
 from contextlib import asynccontextmanager
-from .routers import devices, farms, crops
+from .routers import devices, farms, crops, sensors, actuators
 
 
 @asynccontextmanager
@@ -28,7 +28,8 @@ app = FastAPI(root_path="/api/device-service", lifespan=lifespan)
 app.include_router(devices.router)
 app.include_router(farms.router)
 app.include_router(crops.router)
-
+app.include_router(sensors.router)
+app.include_router(actuators.router)
 
 @app.get("/health")
 async def health_check():

@@ -16,15 +16,15 @@ import logging
 logger = logging.getLogger(__name__)
 
 class Settings:
-    MQTT_BROKER: str = os.getenv("mqtt_broker_url")
-    MQTT_PORT: int = int(os.getenv("mqtt_broker_port", 1883))
-    MQTT_USERNAME: str = os.getenv("mqtt_username")
-    MQTT_PASSWORD: str = os.getenv("mqtt_password")
+    MQTT_BROKER: str = os.getenv("MQTT_BROKER_URL") 
+    MQTT_PORT: int = int(os.getenv("MQTT_BROKER_PORT", 1883))
+    MQTT_USERNAME: str = os.getenv("MQTT_USERNAME")
+    MQTT_PASSWORD: str = os.getenv("MQTT_PASSWORD")
 
-    INFLUXDB_URL: str = os.getenv("INFLUXDB_URL")
-    INFLUXDB_TOKEN: str = os.getenv("INFLUXDB_TOKEN")
-    INFLUXDB_ORG: str = os.getenv("INFLUXDB_ORG")
-    INFLUXDB_BUCKET: str = os.getenv("INFLUXDB_BUCKET")
+    INFLUXDB_URL: str = os.getenv("influxdb_url")
+    INFLUXDB_TOKEN: str = os.getenv("influxdb_token")
+    INFLUXDB_ORG: str = os.getenv("influxdb_org")
+    INFLUXDB_BUCKET: str = os.getenv("influxdb_bucket")
 
     REDIS_HOST: str = os.getenv("REDIS_HOST", "localhost")
     REDIS_PORT: int = int(os.getenv("REDIS_PORT", 6379))
