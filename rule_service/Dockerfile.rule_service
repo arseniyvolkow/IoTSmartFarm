@@ -17,4 +17,4 @@ COPY . /app/rule_service
 EXPOSE 8006
 
 # Run app.py when the container launches
-CMD ["uvicorn", "rule_service.main:app", "--host", "0.0.0.0", "--port", "8006"]
+CMD ["uvicorn", "rule_service.main:app", "--host", "0.0.0.0", "--port", "8007"]

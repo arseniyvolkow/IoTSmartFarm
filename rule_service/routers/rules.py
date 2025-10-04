@@ -1,20 +1,17 @@
-from fastapi import APIRouter, Depends, Query, Path, status
-from ..database import get_db
-from typing import Annotated, Optional
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Query, Path, status
+from typing import Optional
+
 from ..services.rules_service import RulesService
 from ..schemas import RuleCreate, RuleUpdate
-from ..utils import get_current_user
+from ..utils import user_dependency, db_dependency
 
 
 router = APIRouter(prefix="/rules", tags=["Rules and Actions"])
-db_dependency = Annotated[Session, Depends(get_db)]
-
 
 @router.post("/rule", status_code=status.HTTP_201_CREATED)
 async def add_new_rule(
     db: db_dependency,
-    current_user: Annotated[dict, Depends(get_current_user)],
+    current_user: user_dependency,
     rule: RuleCreate,
 ):
     rule_service = RulesService(db)
@@ -24,7 +21,7 @@ async def add_new_rule(
 
 @router.get("/rule", status_code=status.HTTP_200_OK)
 async def get_rule_by_id(
-    db: db_dependency, rule_id, current_user: Annotated[dict, Depends(get_current_user)]
+    db: db_dependency, rule_id, current_user: user_dependency
 ):
     rule_service = RulesService(db)
     rule_entity = await rule_service.get(rule_id)
@@ -35,8 +32,8 @@ async def get_rule_by_id(
 @router.get("/all", status_code=status.HTTP_200_OK)
 async def get_all_rules(
     db: db_dependency,
-    current_user: Annotated[dict, Depends(get_current_user)],
-    sort_column: str,
+    current_user: user_dependency,
+    sort_column: Optional[str] = None,
     cursor: Optional[str] = Query(None),
     limit: Optional[int] = Query(10, le=200),
     farm_id: Optional[str] = None,
@@ -54,7 +51,7 @@ async def get_all_rules(
 async def update_rule(
     db: db_dependency,
     rule: RuleUpdate,
-    current_user: Annotated[dict, Depends(get_current_user)],
+    current_user: user_dependency,
     farm_id: str = Path(max_length=100),
 ):
     rule_service = RulesService(db)
@@ -67,7 +64,7 @@ async def update_rule(
 @router.delete("/rule/{rule_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_rule(
     db: db_dependency,
-    current_user: Annotated[dict, Depends(get_current_user)],
+    current_user: user_dependency,
     rule_id: str = Path(max_length=100),
 ):
     rule_service = RulesService(db)

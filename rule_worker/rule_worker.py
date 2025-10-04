@@ -90,13 +90,56 @@ class RuleWorker:
                 # If it's not JSON, try numeric conversion
                 try:
                     numeric_value = float(sensor_value)
-                    return {"value": numeric_value}
+                    return {"value": numeric_value}  # FIXED: Always return dict format
                 except ValueError:
-                    return {"value": sensor_value}
+                    return {"value": sensor_value}  # FIXED: Always return dict format
                     
         except Exception as e:
             logger.error(f"Error fetching sensor data for {sensor_id}: {e}")
             return None
+
+    def _extract_sensor_value(self, sensor_data: Any) -> Optional[float]:
+        """
+        Extract a numeric value from sensor data.
+        Handles various data formats: dict, numeric, string.
+        """
+        try:
+            # If already numeric, return as float
+            if isinstance(sensor_data, (int, float)):
+                return float(sensor_data)
+            
+            # If it's a dict, try common keys
+            if isinstance(sensor_data, dict):
+                # Try common value keys
+                for key in ['value', 'sensor_value', 'reading', 'measurement', 'data', 'moisture', 'humidity', 'temperature']:
+                    if key in sensor_data:
+                        value = sensor_data[key]
+                        if isinstance(value, (int, float)):
+                            return float(value)
+                        # Try to convert string to float
+                        try:
+                            return float(value)
+                        except (ValueError, TypeError):
+                            continue
+                
+                # If no common keys found, log available keys for debugging
+                logger.debug(f"Could not find numeric value in dict. Available keys: {list(sensor_data.keys())}")
+                return None
+            
+            # If it's a string, try to convert to float
+            if isinstance(sensor_data, str):
+                try:
+                    return float(sensor_data)
+                except ValueError:
+                    logger.debug(f"Could not convert string to float: {sensor_data}")
+                    return None
+            
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error extracting sensor value: {e}")
+            return None
+    
 
     async def execute_action(self, action_dict: Dict[str, Any], rule_context: Dict[str, Any]) -> bool:
         """Execute a rule action based on its type"""
@@ -121,121 +164,107 @@ class RuleWorker:
             return False
 
     async def _execute_device_control(self, action_payload: Dict[str, Any], context: Dict[str, Any]) -> bool:
-        """Execute device control action"""
-        # Get the base URL from environment or use default
-        base_url = os.getenv('SENSOR_DATA_SERVICE_URL', 'http://localhost:8000')
-        url = f"{base_url}/api/sensor-data-service/actuator-mode-update"
+        base_url = os.getenv('SENSOR_DATA_SERVICE_HOST', 'http://sensor_data_service:8000') 
+        url = f"{base_url}/actuator-mode-update"
         
-        # Prepare the payload
+        # FIX: Use 'devices_to_control' to match your payload structure
+        devices = action_payload.get('devices_to_control', [])
+        
+        # Transform to the format expected by sensor_data_service
         control_payload = {
-            "actuators_to_control": action_payload.get('actuators_to_control', [])
-        }
-        
-        # Replace placeholders in payload with context values
-        control_payload = self._replace_placeholders(control_payload, context)
-        
+            "actuators_to_control": devices  # sensor_data_service expects this key
+        }        
+        print(control_payload)
+        logger.info(f"Attempting control action to {url} with payload: {control_payload}") # <-- NEW LOG
+
         try:
+            # 2. Add an explicit HTTPX client instantiation/context if not using a shared one
+            # If self.http_client is a shared client, ensure it's kept alive long enough.
+            
             response = await self.http_client.post(
                 url,
                 json=control_payload,
                 timeout=5.0
             )
             response.raise_for_status()
-            logger.info(f"Device control request sent successfully. Status: {response.status_code}")
+            
+            # This log confirms success and status
+            logger.info(f"SUCCESS: Device control request sent. Status: {response.status_code}")
             return True
 
         except httpx.RequestError as e:
-            logger.error(f"HTTP request to Sensor Data Service failed: {e}")
+            logger.error(f"FAILURE: HTTP request to Sensor Data Service failed: {e}")
             return False
         except httpx.HTTPStatusError as e:
-            logger.error(f"HTTP error response: {e.response.status_code} - {e.response.text}")
+            # This will catch 4xx or 5xx from the sensor-data-service
+            logger.error(f"FAILURE: HTTP error response: {e.response.status_code} - {e.response.text}")
             return False
         except Exception as e:
-            logger.error(f"Unexpected error in device control: {e}")
+            logger.error(f"FAILURE: Unexpected error in device control: {e}")
             return False
 
-    async def _execute_http_request(self, payload: Dict[str, Any], context: Dict[str, Any]) -> bool:
-        """Execute HTTP request action"""
-        url = payload.get("url")
-        method = payload.get("method", "POST").upper()
-        headers = payload.get("headers", {})
-        data = payload.get("data", {})
+    # async def _execute_http_request(self, payload: Dict[str, Any], context: Dict[str, Any]) -> bool:
+    #     """Execute HTTP request action"""
+    #     url = payload.get("url")
+    #     method = payload.get("method", "POST").upper()
+    #     headers = payload.get("headers", {})
+    #     data = payload.get("data", {})
         
-        if not url:
-            logger.error("HTTP request action missing URL")
-            return False
+    #     if not url:
+    #         logger.error("HTTP request action missing URL")
+    #         return False
         
-        # Replace placeholders in data with context values
-        data = self._replace_placeholders(data, context)
+    #     # Replace placeholders in data with context values
+    #     data = self._replace_placeholders(data, context)
         
-        try:
-            response = await self.http_client.request(
-                method=method,
-                url=url,
-                headers=headers,
-                json=data if method in ["POST", "PUT", "PATCH"] else None,
-                params=data if method == "GET" else None
-            )
-            response.raise_for_status()
-            logger.info(f"HTTP request successful: {response.status_code}")
-            return True
-        except httpx.RequestError as e:
-            logger.error(f"HTTP request failed: {e}")
-            return False
-        except httpx.HTTPStatusError as e:
-            logger.error(f"HTTP error response: {e.response.status_code} - {e.response.text}")
-            return False
+    #     try:
+    #         response = await self.http_client.request(
+    #             method=method,
+    #             url=url,
+    #             headers=headers,
+    #             json=data if method in ["POST", "PUT", "PATCH"] else None,
+    #             params=data if method == "GET" else None
+    #         )
+    #         response.raise_for_status()
+    #         logger.info(f"HTTP request successful: {response.status_code}")
+    #         return True
+    #     except httpx.RequestError as e:
+    #         logger.error(f"HTTP request failed: {e}")
+    #         return False
+    #     except httpx.HTTPStatusError as e:
+    #         logger.error(f"HTTP error response: {e.response.status_code} - {e.response.text}")
+    #         return False
 
-    async def _execute_email_notification(self, payload: Dict[str, Any], context: Dict[str, Any]) -> bool:
-        """Execute email notification action"""
-        # This is a placeholder - implement based on your email service
-        to_email = payload.get("to")
-        subject = payload.get("subject", "Rule Alert")
-        body = payload.get("body", "A rule has been triggered")
+    # async def _execute_email_notification(self, payload: Dict[str, Any], context: Dict[str, Any]) -> bool:
+    #     """Execute email notification action"""
+    #     # This is a placeholder - implement based on your email service
+    #     to_email = payload.get("to")
+    #     subject = payload.get("subject", "Rule Alert")
+    #     body = payload.get("body", "A rule has been triggered")
         
-        # Replace placeholders
-        subject = self._replace_placeholders(subject, context)
-        body = self._replace_placeholders(body, context)
-        
-        logger.info(f"Email notification: To={to_email}, Subject={subject}")
-        # TODO: Implement actual email sending logic
-        return True
+    #     logger.info(f"Email notification: To={to_email}, Subject={subject}")
+    #     # TODO: Implement actual email sending logic
+    #     return True
 
-    async def _execute_webhook(self, payload: Dict[str, Any], context: Dict[str, Any]) -> bool:
-        """Execute webhook action"""
-        return await self._execute_http_request(payload, context)
+    # async def _execute_webhook(self, payload: Dict[str, Any], context: Dict[str, Any]) -> bool:
+    #     """Execute webhook action"""
+    #     return await self._execute_http_request(payload, context)
 
-    async def _execute_log_message(self, payload: Dict[str, Any], context: Dict[str, Any]) -> bool:
-        """Execute log message action"""
-        message = payload.get("message", "Rule triggered")
-        level = payload.get("level", "INFO").upper()
+    # async def _execute_log_message(self, payload: Dict[str, Any], context: Dict[str, Any]) -> bool:
+    #     """Execute log message action"""
+    #     message = payload.get("message", "Rule triggered")
+    #     level = payload.get("level", "INFO").upper()
+    #     if level == "ERROR":
+    #         logger.error(message)
+    #     elif level == "WARNING":
+    #         logger.warning(message)
+    #     elif level == "DEBUG":
+    #         logger.debug(message)
+    #     else:
+    #         logger.info(message)
         
-        message = self._replace_placeholders(message, context)
-        
-        if level == "ERROR":
-            logger.error(message)
-        elif level == "WARNING":
-            logger.warning(message)
-        elif level == "DEBUG":
-            logger.debug(message)
-        else:
-            logger.info(message)
-        
-        return True
+    #     return True
 
-    def _replace_placeholders(self, text: Any, context: Dict[str, Any]) -> Any:
-        """Replace placeholders in text with context values"""
-        if isinstance(text, str):
-            for key, value in context.items():
-                placeholder = f"{{{key}}}"
-                text = text.replace(placeholder, str(value))
-            return text
-        elif isinstance(text, dict):
-            return {k: self._replace_placeholders(v, context) for k, v in text.items()}
-        elif isinstance(text, list):
-            return [self._replace_placeholders(item, context) for item in text]
-        else:
-            return text
 
     async def update_rule_last_triggered(self, db_session, rule_id: int):
         """Update the last_triggered_at timestamp for a rule"""
@@ -293,7 +322,22 @@ class RuleWorker:
                     logger.warning(f"No data found in Redis for sensor {sensor_id}. Skipping rule evaluation.")
                     return False
                 
-                rule_context.update(sensor_data)
+                # Extract numeric value from sensor data
+                sensor_value = self._extract_sensor_value(sensor_data)
+                if sensor_value is None:
+                    logger.warning(f"Could not extract numeric value from sensor data for {sensor_id}. Data: {sensor_data}")
+                    return False
+                
+                # Add numeric value to context with multiple variable names for flexibility
+                rule_context["value"] = sensor_value  # Primary short name
+                rule_context["sensor_value"] = sensor_value  # Descriptive name
+                rule_context[sensor_id] = sensor_value  # UUID as fallback
+                
+                # Also add the full sensor data if it's a dict (for advanced rules)
+                if isinstance(sensor_data, dict):
+                    rule_context["sensor_data"] = sensor_data
+                
+                logger.debug(f"Sensor {sensor_id} value: {sensor_value}, Full data: {sensor_data}")
                 is_ready_to_evaluate = True
                 
             elif trigger_type == RuleTriggerType.TIME_BASED:
@@ -314,6 +358,9 @@ class RuleWorker:
                 return False
 
             # Evaluate rule expression
+            logger.debug(f"Evaluating rule '{rule_name}' with expression: {rule_expression_str}")
+            logger.debug(f"Rule context: {rule_context}")
+            
             rule_engine_obj = rule_engine.Rule(rule_expression_str)
             if rule_engine_obj.matches(rule_context):
                 logger.info(f"Rule '{rule_name}' (ID: {rule_id}) matched! Context: {rule_context}")
@@ -323,6 +370,8 @@ class RuleWorker:
                 
                 # Execute actions
                 action_results = []
+                logger.info(f"Executing {len(sorted_actions)} actions for rule '{rule_name}'")
+
                 for action_data in sorted_actions:
                     action_dict = {
                         "action_id": action_data.action_id,
@@ -331,15 +380,16 @@ class RuleWorker:
                         "execution_order": action_data.execution_order,
                     }
                     
+                    logger.info(f"Processing action {action_dict['action_id']} of type {action_dict['action_type']}")
+                    
                     try:
                         success = await self.execute_action(action_dict, rule_context)
                         action_results.append(success)
                         if not success:
-                            logger.warning(f"Action {action_dict.get('action_id')} failed for rule '{rule_name}'")
+                            logger.warning(f"Action {action_dict.get('action_id')} failed")
                     except Exception as action_e:
-                        logger.error(f"Error executing action {action_dict.get('action_id')} for rule '{rule_name}': {action_e}")
+                        logger.error(f"Error executing action: {action_e}", exc_info=True)
                         action_results.append(False)
-
                 # Update last triggered timestamp
                 await self.update_rule_last_triggered(db_session, rule_id)
                 logger.info(f"Rule '{rule_name}' (ID: {rule_id}) last_triggered_at updated.")
@@ -355,6 +405,7 @@ class RuleWorker:
         except Exception as e:
             logger.error(f"An unexpected error occurred during evaluation of rule '{rule_name}': {e}", exc_info=True)
             return False
+        
 
     async def evaluate_rules(self):
         """Main function to evaluate all active rules in the database."""
@@ -413,30 +464,41 @@ async def create_rule_worker(redis_service: Optional[RedisService] = None) -> Ru
     return RuleWorker(redis_service=redis_service)
 
 
-# Main execution function
-async def run_rule_evaluation_cycle(redis_service: Optional[RedisService] = None):
-    """Run a single rule evaluation cycle"""
-    async with RuleWorker(redis_service=redis_service) as rule_worker:
-        await rule_worker.evaluate_rules()
+# # Main execution function
+# async def run_rule_evaluation_cycle(redis_service: Optional[RedisService] = None):
+#     """Run a single rule evaluation cycle"""
+#     async with RuleWorker(redis_service=redis_service) as rule_worker:
+#         await rule_worker.evaluate_rules()
 
 
-# For continuous execution (if needed)
 async def run_rule_worker_daemon(interval_seconds: int = 60, redis_service: Optional[RedisService] = None):
-    """Run the rule worker continuously with specified interval"""
+    """Run the rule worker continuously with specified interval, managing the worker lifecycle."""
     logger.info(f"Starting rule worker daemon with {interval_seconds}s interval")
     
-    while True:
-        try:
-            await run_rule_evaluation_cycle(redis_service=redis_service)
-            await asyncio.sleep(interval_seconds)
-        except KeyboardInterrupt:
-            logger.info("Rule worker daemon stopped by user")
-            break
-        except Exception as e:
-            logger.error(f"Error in rule worker daemon: {e}", exc_info=True)
-            await asyncio.sleep(interval_seconds)
-
+    # Use the context manager OUTSIDE the while loop to manage the client/redis lifecycle once
+    async with RuleWorker(redis_service=redis_service) as rule_worker:
+        
+        while True:
+            try:
+                # 1. Execute the main work directly
+                # This calls the evaluate_rules method on the active worker instance
+                await rule_worker.evaluate_rules()
+                
+                # 2. Log status and pause
+                logger.info(f"Rule evaluation cycle complete. Sleeping for {interval_seconds} seconds...")
+                await asyncio.sleep(interval_seconds)
+                
+            except KeyboardInterrupt:
+                logger.info("Rule worker daemon stopped by user")
+                break
+            except Exception as e:
+                # Log critical errors, but keep the worker alive
+                logger.error(f"Error in rule worker daemon loop: {e}", exc_info=True)
+                await asyncio.sleep(10) # Pause before next attempt
 
 if __name__ == "__main__":
-    # Example usage
-    asyncio.run(run_rule_evaluation_cycle())
+    # Get the interval from environment variable, defaulting to 60 seconds
+    interval = int(os.getenv('RULE_EVALUATION_INTERVAL', 60))
+    
+    # 🚨 CRITICAL FIX: Call the continuous daemon function
+    asyncio.run(run_rule_worker_daemon(interval_seconds=interval))

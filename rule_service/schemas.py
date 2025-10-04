@@ -3,24 +3,14 @@ from pydantic import BaseModel, ConfigDict
 from datetime import  datetime
 from enum import Enum as PyEnum
 from typing import Optional, List
-
-# Rules Models
-class RuleTriggerType(PyEnum):
-    SENSOR_THRESHOLD = "sensor_threshold"
-    # ... other trigger types
-
-
-class RuleActionType(PyEnum):
-    SEND_NOTIFICATION = "send_notification"
-    CONTROL_DEVICE = "control_device"
-    LOG_EVENT = "log_event"
-
+from .enums import *
 
 class RuleActionPayload(BaseModel):
     """A generic model for the action payload (e.g., recipient, MQTT topic)."""
 
-    # Using a catch-all approach as the content is dynamic
-    model_config = ConfigDict(extra="allow")
+    # Add this configuration to explicitly allow any extra keys/values
+    # that are not defined as fields in the model.
+    model_config = ConfigDict(extra='allow') 
 
 
 class RuleActionCreate(BaseModel):

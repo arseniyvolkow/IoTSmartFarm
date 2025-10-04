@@ -1,5 +1,4 @@
-from fastapi import HTTPException, Depends
-from starlette import status
+from fastapi import HTTPException, Depends, status
 import abc
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
@@ -8,6 +7,9 @@ import os
 from passlib.context import CryptContext
 from typing import Annotated
 from fastapi.security import OAuth2PasswordBearer
+from datetime import datetime
+from sqlalchemy.types import DateTime
+from .database import get_db
 
 
 SECRET_KEY = os.getenv("SECRET_KEY")
@@ -77,38 +79,62 @@ class BaseService(abc.ABC):
         self,
         session,
         query,
-        sort_column: str,
+        sort_column: Optional[str] = None,
         cursor: Optional[str] = None,
         limit: int = 10,
     ):
         try:
             model = query.column_descriptions[0]["type"]
+            sort_key_name = sort_column if sort_column else "created_at"
             try:
-                sort_key = getattr(model, sort_column)
+                sort_key = getattr(model, sort_key_name)
             except AttributeError:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Invalid sort column: {sort_column}",
+                    detail=f"Invalid sort column: {sort_key_name}",
                 )
             if cursor:
-                query = query.filter(sort_key > cursor)
+                column_type_instance = sort_key.comparator.type
+                cursor_value = cursor
+                if isinstance(column_type_instance, DateTime):
+                    try:
+                        cursor_value = datetime.datetime.fromisoformat(cursor)
+                    except ValueError:
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="Invalid cursor format for DateTime column.",
+                        )
+                elif column_type_instance.python_type is int:
+                    cursor_value = int(cursor)
+                elif column_type_instance.python_type is float:
+                    cursor_value = float(cursor)
+                query = query.filter(sort_key > cursor_value)
 
             query = query.order_by(sort_key)
-
-            # Execute query asynchronously with the session
             result = await session.execute(query.limit(limit + 1))
-            items = result.scalars().all()
+
+            # ADD THIS LINE - Call unique() to deduplicate joined results
+            items = result.unique().scalars().all()
 
             has_more = len(items) > limit
             items = items[:limit]
 
             if has_more:
-                next_cursor = getattr(items[-1], sort_column)
+                next_value = getattr(items[-1], sort_key_name)
+                if isinstance(next_value, datetime.datetime):
+                    next_cursor = next_value.isoformat()
+                else:
+                    next_cursor = str(next_value)
             else:
                 next_cursor = None
 
             return items, next_cursor
-        except Exception:
+        except Exception as e:
+            print(f"Pagination failed with internal error: {e}")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Pagination error"
             )
+
+
+db_dependency = Annotated[AsyncSession, Depends(get_db)]
+user_dependency = Annotated[dict, Depends(get_current_user)]
