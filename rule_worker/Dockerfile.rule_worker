@@ -12,4 +12,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Run the rule worker when the container launches
-CMD ["python", "rule_worker.py"]
+CMD ["python", "__main__.py"]
