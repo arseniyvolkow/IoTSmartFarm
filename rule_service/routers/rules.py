@@ -1,12 +1,12 @@
 from fastapi import APIRouter, Query, Path, status
 from typing import Optional
-
 from ..services.rules_service import RulesService
 from ..schemas import RuleCreate, RuleUpdate
 from ..utils import user_dependency, db_dependency
 
 
 router = APIRouter(prefix="/rules", tags=["Rules and Actions"])
+
 
 @router.post("/rule", status_code=status.HTTP_201_CREATED)
 async def add_new_rule(
@@ -19,9 +19,11 @@ async def add_new_rule(
     return {"message": "Rule added successfully"}
 
 
-@router.get("/rule", status_code=status.HTTP_200_OK)
+@router.get("/rule/{rule_id}", status_code=status.HTTP_200_OK)
 async def get_rule_by_id(
-    db: db_dependency, rule_id, current_user: user_dependency
+    db: db_dependency,
+    current_user: user_dependency,
+    rule_id: str = Path(max_length=100),
 ):
     rule_service = RulesService(db)
     rule_entity = await rule_service.get(rule_id)
@@ -52,10 +54,10 @@ async def update_rule(
     db: db_dependency,
     rule: RuleUpdate,
     current_user: user_dependency,
-    farm_id: str = Path(max_length=100),
+    rule_id: str = Path(max_length=100),
 ):
     rule_service = RulesService(db)
-    rule_entity = await rule_service.get(farm_id)
+    rule_entity = await rule_service.get(rule_id)
     await rule_service.check_access(rule_entity, current_user["id"])
     await rule_service.update(rule_entity, **rule.model_dump())
     return {"details": f"Rule {rule_entity.rule_id} info was updated!"}

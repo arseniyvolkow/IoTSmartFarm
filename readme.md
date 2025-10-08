@@ -12,9 +12,6 @@
 
 The system is built on the asynchronous FastAPI framework and is fully containerized using Docker. Sensor data is ingested via the MQTT protocol and stored in a time-series database (InfluxDB), while user and device metadata is managed in a PostgreSQL database.
 
-![System Architecture Diagram](YOUR_DIAGRAM_LINK_HERE)
-*(**Pro-Tip:** Use a free tool like `draw.io` or `Miro` to create a simple diagram showing the services and how they connect. Upload the image to your repository and link it here.)*
-
 ---
 
 ## 🔧 Tech Stack
@@ -114,6 +111,17 @@ You can get a local instance up and running easily with Docker.
     - `POST /simulate-sensor-data` - Simulates sensor data input for testing purposes.
     - `GET /device_data/{device_id}/{sensor_type}/{time}` - Queries time-series data for a specified device and sensor.
 
+
+
+### Rule Service
+- **Purpose**: Handles operations related to rules and rules actions.
+- **Key Features**:  Let you create rules which will control actuators based on time or sensors values.
+- **Endpoints**:
+    - `GET /rule/{rule_id}` - Get details about rule
+    - `POST /rule/` - Creates new rule and rule's actions
+    - `GET /all/ ` - Get all users rules, can be filtered by farm_id, sensor_id or trigger_type
+    - `PUT /rule/{rule_id}` - Update rule's information
+    - `DELETE /rule/{rule_id}` - Delete rule
 </details>
 
 ---
