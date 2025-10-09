@@ -108,13 +108,14 @@ class RedisService:
         try:
             # Cache each sensor value individually using its unique sensor_id
             for sensor_data in sensor_data_list:
-                sensor_key = sensor_data['sensor_id']
+                sensor_key = sensor_data["sensor_id"]
                 await self.set_new_sensors_value(sensor_key, str(sensor_data["value"]))
 
             print(f"Successfully updated cache for {len(sensor_data_list)} sensors.")
         except Exception as e:
             print(f"Error updating Redis cache from batch: {e}")
             raise
+
 
 class InfluxDBService:
     """
@@ -179,19 +180,18 @@ class InfluxDBService:
             print(f"Error saving to InfluxDB: {e}")
             raise
 
-    # MODIFIED: Renamed method and removed device_id from query
-    async def query_sensor_data(
-        self, sensor_type: str, time_range: str
+    async def query_data_by_sensor_id(
+        self, sensor_id: str, time_range: str
     ) -> List[Dict[str, Any]]:
         """
-        Query time series data for a specific sensor type
+        Query time series data for a specific sensor ID.
 
         Args:
-            sensor_type: The sensor type to filter by
-            time_range: Time range string (e.g., "1h", "24h", "7d", "30d")
+            sensor_id: The unique sensor ID to filter by.
+            time_range: Time range string (e.g., "1h", "24h", "7d", "30d").
 
         Returns:
-            List of data points with timestamp, value, and metadata
+            List of data points for the specified sensor.
         """
         valid_times = {"1h": "-1h", "24h": "-24h", "7d": "-7d", "30d": "-30d"}
         if time_range not in valid_times:
@@ -199,13 +199,13 @@ class InfluxDBService:
                 f"Invalid time range. Use: {', '.join(valid_times.keys())}"
             )
 
-        # MODIFIED: Removed the device_id filter from the query
+        # The only change is filtering by sensor_id instead of sensor_type
         query = f"""
             from(bucket: "{self.bucket}")
                 |> range(start: {valid_times[time_range]})
-                |> filter(fn: (r) => r["sensor_type"] == "{sensor_type}")
                 |> filter(fn: (r) => r["_measurement"] == "sensor_data")
                 |> filter(fn: (r) => r["_field"] == "value")
+                |> filter(fn: (r) => r["sensor_id"] == "{sensor_id}")
                 |> sort(columns: ["_time"])
         """
         try:
@@ -227,93 +227,7 @@ class InfluxDBService:
                     )
             return data_points
         except Exception as e:
-            print(f"Error querying InfluxDB: {e}")
-            raise
-
-    # MODIFIED: Renamed method and removed device_id from query
-    async def query_all_sensors(self, time_range: str) -> List[Dict[str, Any]]:
-        """
-        Query all sensor data
-
-        Args:
-            time_range: Time range string (e.g., "1h", "24h", "7d", "30d")
-
-        Returns:
-            List of data points for all sensors
-        """
-        valid_times = {"1h": "-1h", "24h": "-24h", "7d": "-7d", "30d": "-30d"}
-        if time_range not in valid_times:
-            raise ValueError(
-                f"Invalid time range. Use: {', '.join(valid_times.keys())}"
-            )
-
-        # MODIFIED: Removed the device_id filter from the query
-        query = f"""
-            from(bucket: "{self.bucket}")
-                |> range(start: {valid_times[time_range]})
-                |> filter(fn: (r) => r["_measurement"] == "sensor_data")
-                |> filter(fn: (r) => r["_field"] == "value")
-                |> sort(columns: ["_time"])
-        """
-        try:
-            result = await self.query_api.query(query, org=self._org)
-            data_points = []
-            for table in result:
-                for record in table.records:
-                    data_points.append(
-                        {
-                            "time": (
-                                record.get_time().isoformat()
-                                if record.get_time()
-                                else None
-                            ),
-                            "value": record.get_value(),
-                            "sensor_id": record.values.get("sensor_id"),
-                            "sensor_type": record.values.get("sensor_type"),
-                        }
-                    )
-            return data_points
-        except Exception as e:
-            print(f"Error querying InfluxDB: {e}")
-            raise
-
-    # MODIFIED: Removed device_id from query
-    async def get_latest_sensor_values(self) -> List[Dict[str, Any]]:
-        """
-        Get the latest values for all sensors
-
-        Returns:
-            List of latest sensor values
-        """
-        # MODIFIED: Removed the device_id filter from the query
-        query = f"""
-            from(bucket: "{self.bucket}")
-                |> range(start: -24h)
-                |> filter(fn: (r) => r["_measurement"] == "sensor_data")
-                |> filter(fn: (r) => r["_field"] == "value")
-                |> group(columns: ["sensor_type"])
-                |> last()
-        """
-        try:
-            result = await self.query_api.query(query, org=self._org)
-            latest_values = []
-            for table in result:
-                for record in table.records:
-                    latest_values.append(
-                        {
-                            "time": (
-                                record.get_time().isoformat()
-                                if record.get_time()
-                                else None
-                            ),
-                            "value": record.get_value(),
-                            "sensor_id": record.values.get("sensor_id"),
-                            "sensor_type": record.values.get("sensor_type"),
-                        }
-                    )
-            return latest_values
-        except Exception as e:
-            print(f"Error querying latest values from InfluxDB: {e}")
+            print(f"Error querying InfluxDB by sensor_id: {e}")
             raise
 
     async def ping(self) -> bool:
@@ -531,16 +445,18 @@ class AsyncMQTTService:
 
             sensor_data = payload.get("sensors", {})
             if not sensor_data:
-                print(f"Invalid payload for device {unique_device_id}: Missing 'sensors'")
+                print(
+                    f"Invalid payload for device {unique_device_id}: Missing 'sensors'"
+                )
                 return
-            
+
             sensor_data_list = self._convert_sensor_data(sensor_data)
 
             # MODIFIED: The call to _update_redis_cache no longer passes device_id
             await asyncio.gather(
                 self._save_to_influxdb(sensor_data_list),
                 self._update_redis_cache(sensor_data_list),
-                return_exceptions=True
+                return_exceptions=True,
             )
 
         except Exception as e:

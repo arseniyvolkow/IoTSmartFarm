@@ -1,7 +1,6 @@
 from fastapi import FastAPI, HTTPException, Depends, Request, status
 from .database import Settings, AsyncMQTTService, InfluxDBService, RedisService
-import redis.exceptions
-from .schemas import ActuatorControl, ActuatorPayload, SensorDataBatch, SensorReading
+from .schemas import ActuatorPayload, SensorDataBatch
 import logging
 import asyncio
 
@@ -19,7 +18,10 @@ async def lifespan(app: FastAPI):
         bucket=settings.INFLUXDB_BUCKET,
     )
     redis_service = RedisService(
-        host=settings.REDIS_HOST, port=settings.REDIS_PORT, db=settings.REDIS_DB, password=settings.REDIS_PASSWORD
+        host=settings.REDIS_HOST,
+        port=settings.REDIS_PORT,
+        db=settings.REDIS_DB,
+        password=settings.REDIS_PASSWORD,
     )
     try:
         await redis_service.connect()
@@ -134,107 +136,67 @@ async def simulate_sensor_data(
         )
 
 
-@app.get("/sensor-value/{device_id}/{sensor_id}")
+@app.get("/sensor-value/{sensor_id}")
 async def get_sensor_value(
-    device_id: str,
-    sensor_id: str,
+    sensor_id: str,  # The device_id parameter is removed
     redis_service: RedisService = Depends(get_redis_service),
 ):
-    """Get cached sensor value from Redis"""
+    """Get a cached sensor value from Redis using only the sensor_id."""
     try:
-        sensor_key = f"{device_id}:{sensor_id}"
-        value = await redis_service.get_sensor_value(sensor_key)
+        # The Redis service now expects the sensor_id directly as the key.
+        # The "sensor:" prefix is handled inside the RedisService class.
+        value = await redis_service.get_sensor_value(sensor_id)
+
         if value is None:
-            raise HTTPException(status_code=404, detail="Sensor value not found")
-        return {"device_id": device_id, "sensor_id": sensor_id, "value": value}
+            raise HTTPException(
+                status_code=404, detail="Sensor value not found in cache"
+            )
+
+        # The response is updated to remove the unnecessary device_id.
+        return {"sensor_id": sensor_id, "value": value}
     except HTTPException:
+        # Re-raise HTTPException to preserve 404 status
         raise
     except Exception as e:
+        # Handle other potential errors (e.g., Redis connection issue)
         raise HTTPException(
             status_code=500, detail=f"Error retrieving sensor value: {str(e)}"
         )
 
 
-# MODIFIED: Changed route, function name, and logic to remove device_id
-@app.get("/sensor_data/{sensor_type}/{time}")
-async def get_timeseries_data(
-    sensor_type: str,
+@app.get("/sensor-data/{sensor_id}/{time}")
+async def get_timeseries_data_by_id(
+    sensor_id: str,
     time: str,
     influx_service: InfluxDBService = Depends(get_influx_service),
 ):
-    """Get time series data for a specific sensor type"""
+    """Get time series data for a specific sensor_id."""
     try:
-        # MODIFIED: Called the renamed method without device_id
-        data_points = await influx_service.query_sensor_data(
-            sensor_type=sensor_type, time_range=time
+        # Call the new method you created in the InfluxDBService
+        data_points = await influx_service.query_data_by_sensor_id(
+            sensor_id=sensor_id, time_range=time
         )
+        if not data_points:
+            # It's good practice to handle cases where no data is found
+            raise HTTPException(
+                status_code=404,
+                detail=f"No data found for sensor_id '{sensor_id}' in the specified time range.",
+            )
+
         return {
             "status": "success",
-            "sensor_type": sensor_type,
+            "sensor_id": sensor_id,
             "time_range": time,
             "data_points": len(data_points),
             "data": data_points,
         }
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Error querying InfluxDB: {str(e)}"
-        )
-
-
-# MODIFIED: Changed route, function name, and logic to remove device_id
-@app.get("/all_sensor_data/{time}")
-async def get_all_sensors_data(
-    time: str,
-    influx_service: InfluxDBService = Depends(get_influx_service),
-):
-    """Get time series data for all sensors"""
-    try:
-        # MODIFIED: Called the renamed method without device_id
-        data_points = await influx_service.query_all_sensors(time_range=time)
-        sensors_data = {}
-        for point in data_points:
-            sensor_type = point["sensor_type"]
-            if sensor_type not in sensors_data:
-                sensors_data[sensor_type] = []
-            sensors_data[sensor_type].append(point)
-        return {
-            "status": "success",
-            "time_range": time,
-            "total_data_points": len(data_points),
-            "sensors": list(sensors_data.keys()),
-            "data": sensors_data,
-        }
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Error querying InfluxDB: {str(e)}"
-        )
-
-
-# MODIFIED: Changed route, function name, and logic to remove device_id
-@app.get("/latest_sensor_data")
-async def get_latest_values(
-    influx_service: InfluxDBService = Depends(get_influx_service),
-):
-    """Get the latest values for all sensors"""
-    try:
-        # MODIFIED: Called the renamed method without device_id
-        latest_values = await influx_service.get_latest_sensor_values()
-        if not latest_values:
-            raise HTTPException(status_code=404, detail="No sensor data found")
-        return {
-            "status": "success",
-            "sensors_count": len(latest_values),
-            "data": latest_values,
-        }
     except HTTPException:
-        raise
+        raise  # Reraise the 404
     except Exception as e:
         raise HTTPException(
-            status_code=500, detail=f"Error querying latest values: {str(e)}"
+            status_code=500, detail=f"Error querying InfluxDB: {str(e)}"
         )
 
 

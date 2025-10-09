@@ -4,8 +4,6 @@
 
 **SmartFarm** is more than just a pet project; it's a complete backend system designed with a microservices architecture to power a smart farming operation. The platform enables real-time data collection from IoT sensors, remote device management (e.g., irrigation systems), and data analysis to boost crop yields.
 
-**[➡️ Watch the Video Demo](YOUR_VIDEO_LINK_HERE)**
-
 ---
 
 ## 🏗️ System Architecture
@@ -18,8 +16,8 @@ The system is built on the asynchronous FastAPI framework and is fully container
 
 | Domain            | Technologies                                     |
 |-------------------|--------------------------------------------------|
-| **Backend** | Python 3.11, FastAPI, SQLAlchemy, Pydantic       |
-| **Databases** | PostgreSQL (Relational), InfluxDB (Time-Series), SQLite (Testing) |
+| **Backend** | Python 3.11, FastAPI, SQLAlchemy, Pydantic, Rule Engine    |
+| **Databases** | PostgreSQL (Relational), InfluxDB (Time-Series)        |
 | **Messaging** | Mosquitto MQTT Broker                            |
 | **DevOps** | Docker, Docker Compose                           |
 | **Async** | Asyncio, aiohttp, aiomqtt                        |
@@ -33,8 +31,8 @@ This project was a great opportunity to solve several interesting engineering ch
 * **✅ Secure Authentication & Authorization:** Developed a robust security layer using **JWT tokens**. Implemented role-based access control (RBAC) to protect endpoints, distinguishing between regular users and administrators.
 * **✅ Real-Time Data Ingestion:** Engineered an asynchronous pipeline with an **MQTT broker** to handle high-throughput data streams from potentially thousands of IoT sensors.
 * **✅ Time-Series Data Management:** Integrated **InfluxDB** to efficiently store, query, and analyze time-series data (e.g., "fetch temperature readings from Sensor X over the last 24 hours").
-* **✅ Resilient Microservices Architecture:** Designed a distributed system by decoupling logic into independent services (**User Service**, **Device Service**). Each service is containerized with **Docker** for isolation and scalability.
-* **✅ Firmware Over-The-Air (FOTA) Updates:** Implemented an endpoint to upload and deploy firmware updates to remote devices.
+* **✅ Resilient Microservices Architecture:** Designed a distributed system by decoupling logic into independent services (**User Service**, **Device Service**, **Sensor Data Service**, **Rule Service**). Each service is containerized with **Docker** for isolation and scalability.
+* **✅ Automation workflows:** Implement a rule engine to allow users to create custom automation workflows (e.g., "if soil moisture drops below 30%, turn on sprinklers for 5 minutes").
 
 ---
 
@@ -54,9 +52,10 @@ You can get a local instance up and running easily with Docker.
     docker-compose up --build
     ```
     Once the containers are running, the API documentation for each service will be available at:
-    * User Service Docs: `http://localhost:8005/docs`
-    * Device Service Docs: `http://localhost:8001/docs`
-
+    * User Service Docs: `http://localhost/api/user-service/docs`
+    * Device Service Docs: `http://localhost/api/device-service/docs`
+    * Rule Service Docs: `http://localhost/api/rule-service/docs`
+    * Sensor Data Retrival Service Docs: `http://localhost//api/sensor-data/docs` 
 ---
 
 ## 📚 API Endpoints
@@ -82,26 +81,39 @@ You can get a local instance up and running easily with Docker.
 - **Purpose**: Handles operations related to farm devices, crop management, and overall farm structure.
 - **Key Features**: Full CRUD for devices, farms, and crops. Firmware update handling. Association of devices to farms.
 - **Device Endpoints**:
-    - `POST /devices/device` - Registers a new device.
-    - `PATCH /devices/device/{device_id}` - Updates the status or configuration of a device.
-    - `DELETE /devices/device/{device_id}` - Removes a device from the system.
-    - `PATCH /devices/assign-device-to-farm` - Associates a device with a specific farm.
-    - `GET /devices/unsigned-devices` - Lists devices not yet assigned to any farm.
-    - `GET /devices/all-devices` - Lists all devices registered under the current user.
-    - `GET /devices/all-devices/{farm_id}` - Lists devices specific to a given farm.
-    - `POST /devices/upload_firmware/{device_id}` - Uploads and updates the firmware of a device.
+    - `POST /device` - Registers a new device, used only by device itself.
+    - `GET /list-of-new-devices` - Get all new devices which were not yet assigned to user.
+    - `GET /unsigned-devices` - Lists devices not yet assigned to any farm.
+    - `GET /all-devices` - Lists all devices registered under the current user.
+    - `GET /all-devices/{farm_id}` - Lists devices specific to a given farm.
+    - `PATCH /assign-device-to-farm` - Associates a device with a specific farm.
+    - `PATCH /device/{device_id}` - Updates the status or configuration of a device.
+    - `DELETE /device/{device_id}` - Removes a device from the system.
+    - `POST /upload_firmware/{device_id}` - Uploads and updates the firmware of a device.
+- **Actuators Enpoints**:
+    - `GET /actuator/{actuator_id}` - Get actudators details.
+    - `GET /all` - Get all users actuators.
+    - `PUT /actuator/{actuator_id}` - Update actuator info.
+    - `DELETE /actuator/{actuator_id}` - Delete actuator.
+- **Sensor Endpoints**:
+    - `GET /sensor/{sensor_id}` - Retrives details about a specific sensor.
+    - `GET /all` - Fetches a list of all sensor which user have access to.
+    - `PUT /sensor/{sensor_id}` - Update sensors information.
+    - `DELETE /sensor/{sensor_id}` - Removes sensor
 - **Farm Endpoints**:
-    - `POST /farms/farm` - Creates a new farm record.
-    - `GET /farms/farm/{farm_id}` - Retrieves detailed information about a specific farm.
+    - `POST /farm` - Creates a new farm record.
+    - `GET /all` - Retrives all users farms.
+    - `GET /farm/{farm_id}` - Retrieves detailed information about a specific farm.
     - `PUT /farms/farm/{farm_id}` - Updates existing farm information.
     - `PATCH /farms/farm/{farm_id}` - Assigns a crop to the farm.
     - `DELETE /farms/farm/{farm_id}` - Deletes a farm record.
 - **Crop Endpoints**:
-    - `POST /crop/crop` - Adds a new crop management entry.
-    - `GET /crop/сrop/{crop_id}` - Retrieves details about a specific crop management entry.
-    - `PUT /crop/crop/{crop_id}` - Updates an existing crop management entry.
-    - `POST /crop/type` - Creates a new crop type.
-    - `GET /crop/type` - Fetches a list of all available crop types.
+    - `POST /crop` - Adds a new crop management entry.
+    - `GET /crop/{crop_id}` - Retrieves details about a specific crop management entry.
+    - `PUT /crop/{crop_id}` - Updates an existing crop management entry.
+    - `GET /all` - Fetches a list of all available crop mangmaent entries.
+    - `POST /crop-type` - Creates a new crop type.
+    - `GET /all-crop-types` - Fetches a list of all available crop types.
 
 ### Sensor Data Service
 - **Purpose**: Receives sensor readings through MQTT and stores them in InfluxDB for time-series analysis.
@@ -110,8 +122,8 @@ You can get a local instance up and running easily with Docker.
     - `GET /health` - Performs a health check on the sensor data service.
     - `POST /simulate-sensor-data` - Simulates sensor data input for testing purposes.
     - `GET /device_data/{device_id}/{sensor_type}/{time}` - Queries time-series data for a specified device and sensor.
-
-
+    - `POST /actuator-mode-update` - Update actuators mode.
+    - `GET /sensor-data/{sensor_id}/{time}` - Get time series data for a specific sensor_id.
 
 ### Rule Service
 - **Purpose**: Handles operations related to rules and rules actions.
@@ -128,7 +140,7 @@ You can get a local instance up and running easily with Docker.
 
 ## 🎯 Future Plans & Roadmap
 
--   [ ] Implement a **Rule Engine** to allow users to create custom automation workflows (e.g., "if soil moisture drops below 30%, turn on sprinklers for 5 minutes").
+
 -   [ ] Increase test coverage to 80% using **Pytest**.
 -   [ ] Set up a **CI/CD pipeline** with GitHub Actions for automated testing and builds.
 

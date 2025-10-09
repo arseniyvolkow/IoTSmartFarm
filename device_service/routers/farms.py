@@ -8,7 +8,7 @@ from ..utils import db_dependency, user_dependency
 router = APIRouter(prefix="/farms", tags=["Farms and Crops management"])
 
 
-@router.post("/farms", status_code=status.HTTP_201_CREATED)
+@router.post("/farm", status_code=status.HTTP_201_CREATED)
 async def add_new_farm(
     db: db_dependency,
     current_user: user_dependency,
@@ -19,7 +19,7 @@ async def add_new_farm(
     return {"message": "Farm added successfully"}
 
 
-@router.get("/farms", status_code=status.HTTP_200_OK, response_model=FarmPagination)
+@router.get("/all", status_code=status.HTTP_200_OK, response_model=FarmPagination)
 async def get_all_farms(
     db: db_dependency,
     current_user: user_dependency,

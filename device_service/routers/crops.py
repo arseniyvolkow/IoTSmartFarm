@@ -15,7 +15,7 @@ from ..utils import db_dependency, user_dependency
 router = APIRouter(prefix="/crop", tags=["Crops"])
 
 
-@router.post("/crops", status_code=status.HTTP_200_OK)
+@router.post("/crop", status_code=status.HTTP_200_OK)
 async def add_new_crop(
     db: db_dependency,
     crop: CropManagmentCreate,
@@ -54,7 +54,7 @@ async def change_crop_info(
     return {"detail": f"Crop {crop_entity.crop_id} info was updated!"}
 
 
-@router.post("/crop_types", status_code=status.HTTP_201_CREATED)
+@router.post("/crop-type", status_code=status.HTTP_201_CREATED)
 async def new_crop_type(
     db: db_dependency,
     current_user: user_dependency,
@@ -92,7 +92,7 @@ async def all_crops(
 
 
 @router.get(
-    "/crop_types", status_code=status.HTTP_200_OK, response_model=CropTypesPagination
+    "/all-crop-types", status_code=status.HTTP_200_OK, response_model=CropTypesPagination
 )
 async def all_crop_types(
     db: db_dependency,
