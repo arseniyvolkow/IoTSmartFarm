@@ -33,18 +33,18 @@ services:
     networks:
       - app-network
 
-  device_service:
+  farm_management_service:
     build:
-      context: ./device_service
-      dockerfile: Dockerfile.device_service
+      context: ./farm_management_service
+      dockerfile: Dockerfile.farm_management_service
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.device.rule=PathPrefix(`/api/device-service`)"
-      - "traefik.http.services.device.loadbalancer.server.port=8000"
+      - "traefik.http.routers.farm_management.rule=PathPrefix(`/api/farm-management-service`)"
+      - "traefik.http.services.farm_management.loadbalancer.server.port=8000"
     depends_on:
       user_service:
         condition: service_started
-      postgresql_device_service:
+      postgresql_farm_management_service:
         condition: service_healthy
     env_file: ".env"
     restart: unless-stopped
@@ -220,20 +220,20 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  postgresql_device_service:
+  postgresql_farm_management_service:
     image: postgres:15
-    container_name: postgresql_device_service
+    container_name: postgresql_farm_management_service
     ports:
       - "5434:5432"
     volumes:
-      - "postgres_device_data:/var/lib/postgresql/data"
+      - "postgres_farm_management_data:/var/lib/postgresql/data"
     environment:
-      POSTGRES_USER: ${POSTGRES_DEVICE_DATABASE_USERNAME}
-      POSTGRES_PASSWORD: ${POSTGRES_DEVICE_DATABASE_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DEVICE_DATABASE_NAME}
+      POSTGRES_USER: ${POSTGRES_FARM_DATABASE_USERNAME}
+      POSTGRES_PASSWORD: ${POSTGRES_FARM_DATABASE_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_FARM_DATABASE_NAME}
       POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --locale=C"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_DEVICE_DATABASE_USERNAME} -d ${POSTGRES_DEVICE_DATABASE_NAME} -h localhost"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_FARM_DATABASE_USERNAME} -d ${POSTGRES_FARM_DATABASE_NAME} -h localhost"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -281,7 +281,7 @@ networks:
 volumes:
   postgres_user_data:
     driver: local
-  postgres_device_data:
+  postgres_farm_management_data:
     driver: local
   postgres_rule_data:
     driver: local

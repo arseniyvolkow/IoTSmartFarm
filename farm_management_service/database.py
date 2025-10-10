@@ -4,10 +4,10 @@ import os
 
 
 SQLALCHEMY_DATABASE_URL = (
-    f"postgresql+asyncpg://{os.getenv('POSTGRES_DEVICE_DATABASE_USERNAME')}:"
-    f"{os.getenv('POSTGRES_DEVICE_DATABASE_PASSWORD')}@"
-    f"{os.getenv('POSTGRES_DEVICE_DATABASE_HOST')}:5432/"
-    f"{os.getenv('POSTGRES_DEVICE_DATABASE_NAME')}"
+    f"postgresql+asyncpg://{os.getenv('POSTGRES_FARM_DATABASE_USERNAME')}:"
+    f"{os.getenv('POSTGRES_FARM_DATABASE_PASSWORD')}@"
+    f"{os.getenv('POSTGRES_FARM_DATABASE_HOST')}:5432/"
+    f"{os.getenv('POSTGRES_FARM_DATABASE_NAME')}"
 )
 
 
