@@ -16,7 +16,7 @@ The system is built on the asynchronous FastAPI framework and is fully container
 
 | Domain            | Technologies                                     |
 |-------------------|--------------------------------------------------|
-| **Backend** | Python 3.11, FastAPI, SQLAlchemy, Pydantic, Rule Engine    |
+| **Backend** | Python 3.11, FastAPI, SQLAlchemy, Pydantic, Rule Engine, Redis    |
 | **Databases** | PostgreSQL (Relational), InfluxDB (Time-Series)        |
 | **Messaging** | Mosquitto MQTT Broker                            |
 | **DevOps** | Docker, Docker Compose                           |
