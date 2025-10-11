@@ -22,7 +22,7 @@ async def lifespan(app: FastAPI):
     print("Database engine disposed.")
 
 
-app = FastAPI(root_path="/api/device-service", lifespan=lifespan)
+app = FastAPI(root_path="/api/farm-management-service", lifespan=lifespan)
 
 
 app.include_router(devices.router)

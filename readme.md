@@ -31,7 +31,7 @@ This project was a great opportunity to solve several interesting engineering ch
 * **✅ Secure Authentication & Authorization:** Developed a robust security layer using **JWT tokens**. Implemented role-based access control (RBAC) to protect endpoints, distinguishing between regular users and administrators.
 * **✅ Real-Time Data Ingestion:** Engineered an asynchronous pipeline with an **MQTT broker** to handle high-throughput data streams from potentially thousands of IoT sensors.
 * **✅ Time-Series Data Management:** Integrated **InfluxDB** to efficiently store, query, and analyze time-series data (e.g., "fetch temperature readings from Sensor X over the last 24 hours").
-* **✅ Resilient Microservices Architecture:** Designed a distributed system by decoupling logic into independent services (**User Service**, **Device Service**, **Sensor Data Service**, **Rule Service**). Each service is containerized with **Docker** for isolation and scalability.
+* **✅ Resilient Microservices Architecture:** Designed a distributed system by decoupling logic into independent services (**User Service**, **Farm Management Service**, **Sensor Data Service**, **Rule Service**). Each service is containerized with **Docker** for isolation and scalability.
 * **✅ Automation workflows:** Implement a rule engine to allow users to create custom automation workflows (e.g., "if soil moisture drops below 30%, turn on sprinklers for 5 minutes").
 
 ---
@@ -53,7 +53,7 @@ You can get a local instance up and running easily with Docker.
     ```
     Once the containers are running, the API documentation for each service will be available at:
     * User Service Docs: `http://localhost/api/user-service/docs`
-    * Device Service Docs: `http://localhost/api/device-service/docs`
+    * Farm Management Service Docs: `http://localhost/api/farm-management-service/docs`
     * Rule Service Docs: `http://localhost/api/rule-service/docs`
     * Sensor Data Retrival Service Docs: `http://localhost//api/sensor-data/docs` 
 ---
@@ -77,7 +77,7 @@ You can get a local instance up and running easily with Docker.
     - `PUT /admin/change_users_role` - (Admin only) Modifies the role assigned to a user.
     - `DELETE /admin/delete_user/{user_to_delete_id}` - (Admin only) Deletes a user account.
 
-### Device Service
+### Farm Management Service
 - **Purpose**: Handles operations related to farm devices, crop management, and overall farm structure.
 - **Key Features**: Full CRUD for devices, farms, and crops. Firmware update handling. Association of devices to farms.
 - **Device Endpoints**:
