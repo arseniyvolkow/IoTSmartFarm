@@ -8,6 +8,7 @@ from ..schemas import (
     CropManagmentRead,
     CropManagmentPagination,
     CropTypesPagination,
+    CropRead,
 )
 from ..services.crops_service import CropService
 from ..utils import db_dependency, user_dependency
@@ -15,15 +16,15 @@ from ..utils import db_dependency, user_dependency
 router = APIRouter(prefix="/crop", tags=["Crops"])
 
 
-@router.post("/crop", status_code=status.HTTP_200_OK)
+@router.post("/crop", status_code=status.HTTP_200_OK, response_model=CropManagmentRead)
 async def add_new_crop(
     db: db_dependency,
     crop: CropManagmentCreate,
     current_user: user_dependency,
 ):
     crop_service = CropService(db)
-    await crop_service.create(crop, current_user["id"])
-    return {"message": "Crop added successfully"}
+    new_crop_entity = await crop_service.create(crop, current_user["id"])
+    return new_crop_entity
 
 
 @router.get(
@@ -50,16 +51,16 @@ async def change_crop_info(
     crop_service = CropService(db)
     crop_entity = await crop_service.get(crop_id)
     await crop_service.check_access(crop_entity, current_user["id"])
-    await crop_service.update(crop_entity, crop_data)
-    return {"detail": f"Crop {crop_entity.crop_id} info was updated!"}
+    new_crop_entity = await crop_service.update(crop_entity, crop_data)
+    return new_crop_entity
 
 
-@router.post("/crop-type", status_code=status.HTTP_201_CREATED)
+@router.post("/crop-type", status_code=status.HTTP_201_CREATED, response_model=CropRead)
 async def new_crop_type(
     db: db_dependency,
     current_user: user_dependency,
     crop_name: str = Query(max_length=100),
-):
+) -> CropRead:
     query = select(Crops).filter(Crops.crop_name == crop_name)
     result = await db.execute(query)
     existing_crop_type = result.scalars().first()
@@ -70,7 +71,7 @@ async def new_crop_type(
     crop_type_entity = Crops(crop_name=crop_name)
     db.add(crop_type_entity)
     await db.commit()
-    return {"details": f'New crop type "{crop_name}" added successfully!'}
+    return crop_type_entity
 
 
 @router.get(
@@ -82,7 +83,7 @@ async def all_crops(
     sort_column: Optional[str] = None,
     cursor: Optional[str] = Query(None),
     limit: Optional[int] = Query(10, ge=10, le=200),
-):
+) -> CropManagmentPagination:
     query = select(CropManagement)
     crop_service = CropService(db)
     items, next_cursor = await crop_service.cursor_paginate(
@@ -92,14 +93,16 @@ async def all_crops(
 
 
 @router.get(
-    "/all-crop-types", status_code=status.HTTP_200_OK, response_model=CropTypesPagination
+    "/all-crop-types",
+    status_code=status.HTTP_200_OK,
+    response_model=CropTypesPagination,
 )
 async def all_crop_types(
     db: db_dependency,
     sort_column: Optional[str] = None,
     cursor: Optional[str] = Query(None),
     limit: Optional[int] = Query(10, ge=10, le=200),
-):
+) -> CropTypesPagination:
     query = select(Crops)
     crop_service = CropService(db)
     items, next_cursor = await crop_service.cursor_paginate(

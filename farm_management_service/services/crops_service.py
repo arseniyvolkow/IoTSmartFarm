@@ -17,12 +17,13 @@ class CropService(BaseService):
             )
         return crop_entity
 
-    async def create(self, crop: CropManagmentCreate, user_id):
+    async def create(self, crop: CropManagmentCreate, user_id: str) -> "CropManagement":
         crop_data_dict = crop.model_dump()
         crop_data_dict["user_id"] = user_id
         crop_entity = CropManagement(**crop_data_dict)
         self.db.add(crop_entity)
         await self.db.commit()
+        return crop_entity
 
     async def assign_crop_to_farm(self, farm_entity, crop_entity):
         farm_entity.farm_id = crop_entity.farm_id

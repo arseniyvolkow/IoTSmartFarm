@@ -65,6 +65,8 @@ class BaseService(abc.ABC):
         for key, value in kwargs.items():
             setattr(entity, key, value)
         await self.db.commit()
+        await self.db.refresh(entity) 
+        return entity
 
     async def delete(self, entity):
         await self.db.delete(entity)
