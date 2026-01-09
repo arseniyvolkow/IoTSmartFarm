@@ -34,48 +34,50 @@ class RefreshRequest(BaseModel):
 
 
 class UserBase(BaseModel):
-    id: set
+    id: str
     email: str
-    first_name: Optional[str]
-    second_name: Optional[str]
-    middle_name: Optional[str]
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    middle_name: Optional[str] = None
     is_active: bool
-    create_at: datetime
+    created_at: datetime
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
 
-
 class UserResponse(UserBase):
     role_id: str
 
+
+class PermissionBase(BaseModel):
+    resource: str
+    can_read: bool = False
+    can_write: bool = False
+    can_delete: bool = False
+
+class PermissionSet(PermissionBase):
+    """Для входящих данных при создании/обновлении прав"""
+    pass
+
+class PermissionResponse(PermissionBase):
+    """Для отображения прав внутри RoleResponse"""
+    id: str  # В модели RoleAccess это String (UUID)
+    
+    model_config = ConfigDict(from_attributes=True)
 
 class RoleBase(BaseModel):
     name: str
     can_read_all: bool = False
     can_write_all: bool = False
 
-
 class RoleCreate(RoleBase):
     pass
 
-
-class PermissionSet(BaseModel):
-    resource: str  # Например: "farms", "sensors", "users"
-    can_read: bool = False
-    can_write: bool = False
-    can_delete: bool = False
-
-
-class PermissionResponse(BaseModel):
-    resource: str
-    can_read: bool
-    can_write: bool
-    can_delete: bool
-
-
 class RoleResponse(RoleBase):
-    access_list: List[PermissionResponse]
+    id: str  # В модели Role это String (UUID)
+    # Поле называется access_list, как relationship в модели Role
+    access_list: List[PermissionResponse] = []
+
     model_config = ConfigDict(from_attributes=True)
 
 

@@ -1,11 +1,12 @@
 from typing import List
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from sqlalchemy.dialects.postgresql import insert
 from fastapi import HTTPException
 
 # Импортируем новые модели
-from .models import Role, RoleAccess
+from ..models import Role, RoleAccess
 
 
 class RBACService:
@@ -88,12 +89,15 @@ class RBACService:
 
         await self.db.execute(do_update_stmt)
         await self.db.commit()
-        
-        # 4. Обновляем объект роли, чтобы поле role.access_list подтянуло свежие данные
-        # (это работает благодаря lazy="selectin" в модели Role)
-        await self.db.refresh(role) 
-        
-        return role
+
+        # Перезапрашиваем роль с предзагрузкой прав, чтобы pydantic их увидел
+        stmt = (
+            select(Role)
+            .where(Role.name == role_name)
+            .options(selectinload(Role.access_list))
+        )
+        result = await self.db.execute(stmt)
+        return result.scalars().first()
 
 
     async def get_all_roles(self) -> List[Role]:

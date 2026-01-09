@@ -3,11 +3,11 @@ from .database import db_dependency
 from sqlalchemy import select
 from .models import User
 from fastapi.security import HTTPBearer
-from .user_service import UserService
+from .services.user_service import UserService
 from typing import Annotated
 from common.security import get_token_payload
-from .auth_service import AuthService
-from .rbac_service import RBACService
+from .services.auth_service import AuthService
+from .services.rbac_service import RBACService
 
 oauth2_scheme = HTTPBearer()
 

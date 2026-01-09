@@ -30,7 +30,7 @@ class User(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
     # Связь с ролями (FK)
-    role_id: Mapped[int] = mapped_column(ForeignKey("roles.id"))
+    role_id: Mapped[str] = mapped_column(ForeignKey("roles.id"))
 
     # Связь ORM (один ко многим)
     role: Mapped["Role"] = relationship(back_populates="users")

@@ -108,15 +108,27 @@ You can get a local instance up and running easily with Docker.
 - **Purpose**: Provides authentication (JWT-based) and user management functions.
 - **Key Features**: User registration, role assignment, token generation/validation, and administrative user management.
 - **Endpoints**:
-    - `POST /auth/create_user` - Creates a new user account.
-    - `POST /auth/token` - Authenticates the user and generates a JWT access token.
-    - `GET /auth/get_current_user` - Retrieves details for the currently authenticated user.
-    - `GET /user/info` - Fetches profile information of the logged-in user.
-    - `PUT /user/change_password` - Allows the user to change their password.
-    - `PUT /user/change_number` - Updates the user's contact number.
-    - `GET /admin/get_all_users` - (Admin only) Retrieves a list of all registered users.
-    - `PUT /admin/change_users_role` - (Admin only) Modifies the role assigned to a user.
-    - `DELETE /admin/delete_user/{user_to_delete_id}` - (Admin only) Deletes a user account.
+  * **Auth Router** (Public/Session):  
+    - `POST /auth/register`- Register a new account.  
+    - `POST /auth/token`- Login via Email/Password. Returns **Access \+ Refresh** tokens.  
+    - `POST /auth/refresh` - Refresh an expired Access token using a valid Refresh token.  
+    - `POST /auth/logout` - Secure logout (revokes token via Redis Blacklist).  
+  * **User Profile** (Self-Service \- /users/me):  
+    - `GET /users/me` - Get current user's profile details.  
+    - `PUT /users/me`- Update self profile (Email, Password, Avatar).  
+    - `DELETE /users/me` - Delete self account (Self-service).  
+  * **User Management** (Admin Only \- /users):  
+    - `GET /users` - List all users (Requires users:read).  
+    - `GET /users/{id}` - Get details of a specific user.  
+    - `PUT /users/{id}` - Admin update (Email, Ban status, Active status) (Requires users:write).  
+    - `POST /users/{id}/role` - Assign a role to a user (Requires roles:write).  
+    - `DELETE /users/{id}` - Force delete/ban a user (Requires users:delete).  
+  * **RBAC Management** (Super Admin Only \- /admin/roles):  
+    - `GET /admin/roles` - List all available roles.  
+    - `POST /admin/roles` - Create a new Role (e.g., "Agronomist").  
+    - `GET /admin/roles/{name}` - View role details and permissions.  
+    - `POST /admin/roles/{name}/permissions` - Configure resource permissions (e.g., give read access to "farms").  
+    - `DELETE /admin/roles/{name}` - Delete a role.
 
 ### Farm Management Service
 - **Purpose**: Handles operations related to farm devices, crop management, and overall farm structure.

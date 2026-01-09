@@ -6,7 +6,7 @@ from ..dependencies import (
     UserServiceDependency,
     AuthServiceDependency,
 )
-from ..auth_service import AuthService
+from ..services.auth_service import AuthService
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
