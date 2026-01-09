@@ -1,72 +1,84 @@
-from typing import Annotated, Optional
-from pydantic import BaseModel, Field
-from starlette import status
-from fastapi import APIRouter, Depends, HTTPException
-from ..database import get_db
-from ..utils import user_dependency, db_dependency, bcrypt_context
-from ..models import Users
-from sqlalchemy import select
-from ..schemas import UserInfoResponse, ChangeNumber, ChangePassword
-
-router = APIRouter(prefix="/user", tags=["user"])
+from fastapi import APIRouter, status, Response, Depends
+from ..schemas import UserUpdate
+from ..dependencies import (
+    UserServiceDependency,
+    CurrentUserDependency
+)
+from common.security import CheckAccess
 
 
-def check_permissions(role: str):
-    def dependency(user: user_dependency):
-        if user.get("role") != role:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You do not have permission to access this resource",
-            )
-        return user
-
-    return dependency
+router = APIRouter(prefix="/user", tags=["Users"])
 
 
-@router.get("/info", response_model=UserInfoResponse, status_code=status.HTTP_200_OK)
-async def user_info(db: db_dependency, user: user_dependency):
-    query = select(Users).filter(Users.user_id == user.get("id"))
-    result = await db.execute(query)
-    user_entity = result.scalar_one_or_none()
-    if user_entity is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="User not found."
-        )
-    return user_entity
-
-
-@router.put("/change-password", status_code=status.HTTP_204_NO_CONTENT)
-async def change_password(
-    db: db_dependency, user: user_dependency, change_password: ChangePassword
+@router.get("/me")
+async def get_my_profile(
+    user_service: UserServiceDependency, current_user: CurrentUserDependency
 ):
-    query = select(Users).filter(Users.user_id == user.get("id"))
-    result = await db.execute(query)
-    user_entity = result.scalar_one_or_none()
-    if user_entity is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
-        )
-    if not bcrypt_context.verify(
-        change_password.old_password, user_entity.hashed_password
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Current password is incorrect",
-        )
-    user_entity.hashed_password = bcrypt_context.hash(change_password.new_password)
-    await db.commit()
+    return await user_service.get_user_by_id(current_user)
 
 
-@router.put("/change-number", status_code=status.HTTP_204_NO_CONTENT)
-async def change_number(
-    db: db_dependency, user: user_dependency, change_number_request: ChangeNumber
+@router.get("/me")
+async def update_my_profile(
+    data: UserUpdate,
+    user_service: UserServiceDependency,
+    current_user: CurrentUserDependency,
 ):
-    query = select(Users).filter(Users.user_id == user.get("id"))
-    result = await db.execute(query)
-    user_entity = result.scalar_one_or_none()
-    if user_entity is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
-        )
-    user_entity.contact_number = change_number_request.new_number
-    await db.commit()
+    return await user_service.update_user(current_user, data)
+
+
+@router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_my_profile(
+    current_user: CurrentUserDependency,
+    user_service: UserServiceDependency,
+):
+    user_service.soft_delete_user(current_user.id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+
+
+# --- АДМИН ПАНЕЛЬ (/users/{id}) ---
+# Жесткая защита через RBAC: CheckAccess
+
+@router.get("/", dependencies=[Depends(CheckAccess("users", "read"))])
+async def get_all_users(
+    user_service: UserServiceDependency,
+    skip: int = 0, 
+    limit: int = 100,
+):
+    """
+    ADMIN: Список всех пользователей.
+    """
+    return await user_service.get_all_users(skip, limit)
+
+@router.get("/{user_id}", dependencies=[Depends(CheckAccess("users", "read"))])
+async def get_user_by_id_admin(
+    user_service: UserServiceDependency,
+    user_id: str,
+
+):
+    """
+    ADMIN: Просмотр любого профиля.
+    """
+    return await user_service.get_user_by_id(user_id)
+
+@router.put("/{user_id}", dependencies=[Depends(CheckAccess("users", "write"))])
+async def update_user_admin(
+    user_service: UserServiceDependency,
+    user_id: str,
+    user_data: UserUpdate, # В идеале здесь должна быть UserAdminUpdate (с полями is_active и т.д.)
+):
+    """
+    ADMIN: Обновление любого профиля (Смена email, бан, смена пароля).
+    """
+    return await user_service.update_user(user_id, user_data)
+
+@router.delete("/{user_id}", dependencies=[Depends(CheckAccess("users", "delete"))])
+async def delete_user_admin(
+    user_service: UserServiceDependency,
+    user_id: str,
+):
+    """
+    ADMIN: Принудительное удаление пользователя.
+    """
+    return await user_service.soft_delete_user(user_id)

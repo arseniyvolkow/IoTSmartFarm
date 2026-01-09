@@ -1,135 +1,154 @@
-from fastapi import APIRouter, Depends, HTTPException, Path
-from starlette import status
-from ..database import get_db
-from typing import Annotated, List
-from sqlalchemy.ext.asyncio import AsyncSession
-from ..utils import user_dependency, db_dependency
-from ..models import Users
-from pydantic import BaseModel
-from sqlalchemy import select, delete
-from ..schemas import UserResponse, NewRole
+from fastapi import APIRouter, status, Depends
+from ..schemas import RoleResponse, RoleCreate, PermissionSet, PermissionResponse
+from ..dependencies import RBACServiceDependency
+from common.security import CheckAccess
+from typing import List
+
+router = APIRouter(prefix="/admin", tags=["Admin"])
 
 
-
-
-def check_admin_permissions(current_user: user_dependency):
+def map_role_to_response(role) -> RoleResponse:
     """
-    Dependency to ensure current user has admin role.
+    Хелпер для конвертации ORM модели Role в Pydantic схему RoleResponse.
+    Позволяет избежать дублирования кода в эндпоинтах.
     """
-    if current_user.get("role") != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required"
+    perms_dto = [
+        PermissionResponse(
+            resource=a.resource,
+            can_read=a.can_read,
+            can_write=a.can_write,
+            can_delete=a.can_delete,
         )
-    return current_user
+        for a in role.access_list
+    ]
 
-
-router = APIRouter(
-    prefix="/admin", tags=["admin"], dependencies=[Depends(check_admin_permissions)]
-)
+    return RoleResponse(
+        name=role.name,
+        can_read_all=role.can_read_all,
+        can_write_all=role.can_write_all,
+        permissions=perms_dto,
+    )
 
 
 @router.get(
-    "/get_all_users", response_model=List[UserResponse], status_code=status.HTTP_200_OK
+    "/",
+    response_model=List[RoleResponse],
+    dependencies=[Depends(CheckAccess("roles", "read"))],
 )
-async def get_all_users(db: db_dependency, user: user_dependency):
-    query = select(Users)
-    result = await db.execute(query)
-    users = result.scalars().all
-    return users
+async def get_all_roles(rbac_service: RBACServiceDependency):
+    """
+    Список всех доступных ролей.
+    """
+    # Вам нужно будет добавить метод get_all_roles в RBACService
+    roles = await rbac_service.get_all_roles()
+    return [map_role_to_response(role) for role in roles]
 
 
-@router.put("/change_users_role", status_code=status.HTTP_204_NO_CONTENT)
-async def change_users_role(
-    db: db_dependency, user: user_dependency, change_user: NewRole
+@router.post(
+    "/",
+    status_code=status.HTTP_201_CREATED,
+    response_model=RoleResponse,
+    dependencies=[Depends(CheckAccess("roles", "write"))],
+)
+async def create_new_role(
+    role_data: RoleCreate,
+    rbac_service: RBACServiceDependency,
 ):
-    query = select(Users).filter(Users.id == change_user.id_of_user)
-    result = await db.execute(query)
-    user_entity = result.scalar_one_or_none()
-    if user_entity is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"User with ID {change_user.user_id} not found!",
-        )
-    if user_entity.user_id == user.get("id"):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="You cannot change your own role.",
-        )
-    user_entity.role = change_user.role
-    await db.commit()
-    await db.refresh(user_entity)
+
+    # Создаем роль
+    new_role = await rbac_service.create_role(
+        name=role_data.name,
+        can_read_all=role_data.can_read_all,
+        can_write_all=role_data.can_write_all,
+    )
+
+    # Формируем ответ (у новой роли список прав пустой)
+    return RoleResponse(
+        name=new_role.name,
+        can_read_all=new_role.can_read_all,
+        can_write_all=new_role.can_write_all,
+        permissions=[],
+    )
 
 
-@router.get("/delete_user/{user_to_delete_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_user(db: db_dependency, user: user_dependency, user_to_delete_id: int):
-    check_query = select(Users).filter(Users.user_id == user_to_delete_id)
-    check_result = await db.execute(check_query)
-    user_to_delete = check_result.scalar_one_or_none()
-    if user_to_delete is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"User with ID {user_to_delete_id} not found.",
-        )
+@router.post(
+    "/{role_name}/permissions",
+    response_model=RoleResponse,
+    dependencies=[Depends(CheckAccess("roles", "write"))],
+)
+async def set_permission_for_role(
+    role_name: str, perm_data: PermissionSet, rbac_service: RBACServiceDependency
+):
+    """
+    Добавить или Обновить права роли для конкретного ресурса.
+    Требует права записи в ресурс 'roles'.
+    """
+    updated_role = await rbac_service.set_role_access(
+        role_name=role_name,
+        resource=perm_data.resource,
+        can_read=perm_data.can_read,
+        can_write=perm_data.can_write,
+        can_delete=perm_data.can_delete,
+    )
 
-    if user_to_delete_id == user.get("id"):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="You cannot delete your own account.",
+    # Конвертируем ORM объекты (RoleAccess) в Pydantic (PermissionResponse)
+    perms_dto = [
+        PermissionResponse(
+            resource=a.resource,
+            can_read=a.can_read,
+            can_write=a.can_write,
+            can_delete=a.can_delete,
         )
+        for a in updated_role.access_list
+    ]
 
-    if user_to_delete.role == "admin":
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot delete another admin account.",
-        )
-
-    delete_query = delete(Users).where(Users.user_id == user_to_delete_id)
-    result = await db.execute(delete_query)
-    await db.commit()
-
-    if result.rowcount == 0:
-        # This case should ideally be caught by the initial existence check,
-        # but it's a good safeguard if concurrent operations are possible.
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"User with ID {user_to_delete_id} not found or already deleted.",
-        )
-    return {"details": "User deleted"}
+    return RoleResponse(
+        name=updated_role.name,
+        can_read_all=updated_role.can_read_all,
+        can_write_all=updated_role.can_write_all,
+        permissions=perms_dto,
+    )
 
 
 @router.get(
-    "/get_user/{user_id}", response_model=UserResponse, status_code=status.HTTP_200_OK
+    "/{role_name}",
+    response_model=RoleResponse,
+    dependencies=[Depends(CheckAccess("roles", "read"))],
 )
-async def get_user_by_id(
-    db: db_dependency,
-    user: user_dependency,
-    user_id: int = Path(gt=0, description="ID of user to retrieve"),
-):
-    query = select(Users).filter(Users.user_id == user_id)
-    result = await db.execute(query)
-    user_entity = result.scalar_one_or_none()
+async def get_role_details(role_name: str, rbac_service: RBACServiceDependency):
+    """
+    Посмотреть детальную информацию о роли и всех её правах.
+    Требует права чтения ресурса 'roles'.
+    """
+    role = await rbac_service.get_role_by_name(role_name)
 
-    if user_entity is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"User with ID {user_id} not found.",
+    perms_dto = [
+        PermissionResponse(
+            resource=a.resource,
+            can_read=a.can_read,
+            can_write=a.can_write,
+            can_delete=a.can_delete,
         )
+        for a in role.access_list
+    ]
 
-    return user_entity
+    return RoleResponse(
+        name=role.name,
+        can_read_all=role.can_read_all,
+        can_write_all=role.can_write_all,
+        permissions=perms_dto,
+    )
 
 
-@router.get(
-    "/users_by_role/{role}",
-    response_model=List[UserResponse],
-    status_code=status.HTTP_200_OK,
+@router.delete(
+    "/{role_name}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(CheckAccess("roles", "delete"))],
 )
-async def get_users_by_role(
-    db: db_dependency,
-    user: user_dependency,
-    role: str = Path(min_length=1, description="Role to filter by"),
-):
-    query = select(Users).filter(Users.role == role)
-    result = await db.execute(query)
-    users = result.scalars().all()
-
-    return users
+async def delete_role(role_name: str, rbac_service: RBACServiceDependency):
+    """
+    Удалить роль.
+    """
+    # Вам нужно будет добавить метод delete_role в RBACService
+    await rbac_service.delete_role(role_name)
+    return None

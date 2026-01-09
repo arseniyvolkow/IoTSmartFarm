@@ -14,7 +14,7 @@ router = APIRouter(prefix="/devices", tags=["Devices"])
 
 
 @router.post("/device", status_code=status.HTTP_201_CREATED, response_model=DeviceRead)
-async def new_device(db: db_dependency, device_data: DeviceCreate):
+async def new_device(db: db_dependency, device_data: DeviceCreate) -> DeviceRead:
     try:
         device_service = DeviceService(db)
         result = await device_service.create(device_data)
@@ -90,21 +90,25 @@ async def list_devices(
     return {"items": items, "next_cursor": next_cursor}
 
 
-@router.patch("/assign-device-to-farm", status_code=status.HTTP_200_OK)
+@router.patch(
+    "/assign-farm-to-device", status_code=status.HTTP_200_OK, response_model=DeviceRead
+)
 async def assign_device(
     db: db_dependency,
     current_user: user_dependency,
     device_id: str = Query(max_length=100),
     farm_id: str = Query(max_length=100),
-):
+) -> DeviceRead:
     farm_service = FarmService(db)
     farm_entity = await farm_service.get(farm_id)
     await farm_service.check_access(farm_entity, current_user["id"])
     device_service = DeviceService(db)
     device_entity = await device_service.get(device_id)
     await device_service.check_access(device_entity, current_user["id"])
-    await device_service.assign_device_to_farm(device_entity, farm_entity)
-    return {"details": "Device assigned to farm!"}
+    updated_device_entity = await device_service.update(
+        device_entity, farm_id=farm_entity.farm_id
+    )
+    return updated_device_entity
 
 
 @router.patch("/assign-user-to-device", status_code=status.HTTP_200_OK)

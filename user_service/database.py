@@ -1,28 +1,29 @@
 from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine, AsyncSession
 import os
-import logging
-
-logger = logging.getLogger(__name__)
+from typing import Annotated
+from fastapi import Depends
 
 SQLALCHEMY_DATABASE_URL = (
-    f"postgresql+asyncpg://{os.getenv('POSTGRES_USER_DATABASE_USERNAME')}:"
-    f"{os.getenv('POSTGRES_USER_DATABASE_PASSWORD')}@"
-    f"{os.getenv('POSTGRES_USER_DATABASE_HOST')}:5432/"
-    f"{os.getenv('POSTGRES_USER_DATABASE_NAME')}"
+    f"postgresql+asyncpg://{os.getenv('POSTGRES_FARM_DATABASE_USERNAME')}:"
+    f"{os.getenv('POSTGRES_FARM_DATABASE_PASSWORD')}@"
+    f"{os.getenv('POSTGRES_FARM_DATABASE_HOST')}:5432/"
+    f"{os.getenv('POSTGRES_FARM_DATABASE_NAME')}"
 )
 
-# Debug logging (remove password for security)
-debug_url = SQLALCHEMY_DATABASE_URL.replace(os.getenv('POSTGRES_USER_DATABASE_PASSWORD'), '***')
-logger.info(f"Database URL: {debug_url}")
 
-engine = create_async_engine(SQLALCHEMY_DATABASE_URL, echo=True)  # Add echo for SQL debugging
+engine = create_async_engine(SQLALCHEMY_DATABASE_URL)
 AsyncSessionLocal = async_sessionmaker(
-    autocommit=False, autoflush=False, bind=engine, class_=AsyncSession
+    autocommit=False,
+    autoflush=False,
+    bind=engine,
+    class_=AsyncSession,
 )
+
 
 class Base(DeclarativeBase):
     pass
+
 
 async def get_db():
     db = AsyncSessionLocal()
@@ -30,3 +31,6 @@ async def get_db():
         yield db
     finally:
         await db.close()
+
+
+db_dependency = Annotated[AsyncSession, Depends(get_db)]

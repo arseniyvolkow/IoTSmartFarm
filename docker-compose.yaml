@@ -19,8 +19,8 @@ services:
 
   user_service:
     build:
-      context: ./user_service
-      dockerfile: Dockerfile.user_service
+      context: .
+      dockerfile: user_service/Dockerfile.user_service
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.user.rule=PathPrefix(`/api/user-service`)"

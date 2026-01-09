@@ -12,7 +12,46 @@ The system works like this: it uses high-speed data collection (MQTT) to instant
 
 The system is built on the asynchronous FastAPI framework and is fully containerized using Docker. Sensor data is ingested via the MQTT protocol and stored in a time-series database (InfluxDB), while user and device metadata is managed in a PostgreSQL database.
 
----
+```mermaid
+graph TD
+    Client((User/Client)) -->|HTTP/REST| Traefik[Traefik Reverse Proxy]
+
+    subgraph "Backend Cluster"
+        Traefik -->|/api/user| UserService[User Service]
+        Traefik -->|/api/farm| FarmService[Farm Mng Service]
+        Traefik -->|/api/rules| RuleService[Rule Service]
+        Traefik -->|/api/sensor| SensorService[Sensor Data Service]
+        
+        %% Background Worker
+        RuleWorker[Rule Worker]
+    end
+
+    subgraph "Data Storage"
+        %% DB per Service
+        UserService --> UserDB[(User Postgres)]
+        FarmService --> FarmDB[(Farm Postgres)]
+        RuleService --> RuleDB[(Rule Postgres)]
+        RuleWorker --> RuleDB
+        SensorService --> Influx[(InfluxDB)]
+        
+        %% Redis is central for Auth & State
+        Redis[(Redis\nCache & Blacklist)]
+    end
+
+    %% Auth & Logic Flow
+    UserService -->|Revoke Token| Redis
+    FarmService -.->|Check Blacklist| Redis
+    RuleService -.->|Check Blacklist| Redis
+    SensorService -.->|Check Blacklist| Redis
+    RuleWorker -->|Read State| Redis
+
+    subgraph "IoT Infrastructure"
+        IoT[IoT Sensors] -->|MQTT| Broker[Mosquitto Broker]
+        Broker -->|Subscribe| SensorService
+        RuleWorker -->|Publish Commands| Broker
+    end
+
+```
 
 ## 🔧 Tech Stack
 
@@ -57,7 +96,7 @@ You can get a local instance up and running easily with Docker.
     * User Service Docs: `http://localhost/api/user-service/docs`
     * Farm Management Service Docs: `http://localhost/api/farm-management-service/docs`
     * Rule Service Docs: `http://localhost/api/rule-service/docs`
-    * Sensor Data Retrival Service Docs: `http://localhost//api/sensor-data/docs` 
+    * Sensor Data Retrieval Service Docs: `http://localhost//api/sensor-data/docs` 
 ---
 
 ## 📚 API Endpoints
@@ -92,8 +131,8 @@ You can get a local instance up and running easily with Docker.
     - `PATCH /device/{device_id}` - Updates the status or configuration of a device.
     - `DELETE /device/{device_id}` - Removes a device from the system.
     - `POST /upload_firmware/{device_id}` - Uploads and updates the firmware of a device.
-- **Actuators Enpoints**:
-    - `GET /actuator/{actuator_id}` - Get actudators details.
+- **Actuators Endpoints**:
+    - `GET /actuator/{actuator_id}` - Get actuators details.
     - `GET /all` - Get all users actuators.
     - `PUT /actuator/{actuator_id}` - Update actuator info.
     - `DELETE /actuator/{actuator_id}` - Delete actuator.
@@ -113,7 +152,7 @@ You can get a local instance up and running easily with Docker.
     - `POST /crop` - Adds a new crop management entry.
     - `GET /crop/{crop_id}` - Retrieves details about a specific crop management entry.
     - `PUT /crop/{crop_id}` - Updates an existing crop management entry.
-    - `GET /all` - Fetches a list of all available crop mangmaent entries.
+    - `GET /all` - Fetches a list of all available crop managmaent entries.
     - `POST /crop-type` - Creates a new crop type.
     - `GET /all-crop-types` - Fetches a list of all available crop types.
 
