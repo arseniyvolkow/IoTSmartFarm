@@ -1,10 +1,11 @@
 from typing import  Dict, Union, Any 
 from fastapi import  HTTPException, status
-from jose import jwt, JWTError
+import jwt
 from datetime import timedelta, datetime, timezone
 import os
 from passlib.context import CryptContext
 import uuid
+from jwt.exceptions import PyJWTError
 
 SECRET_KEY = os.getenv("SECRET_KEY")
 if not SECRET_KEY:
@@ -66,7 +67,7 @@ def decode_access_token(token: str) -> Dict[str, Any]:
         # This will automatically check 'exp' for you
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         return payload
-    except JWTError as e:
+    except PyJWTError as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=f"Token invalid or expired: {e}",

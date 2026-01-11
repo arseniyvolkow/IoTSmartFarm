@@ -35,8 +35,8 @@ services:
 
   farm_management_service:
     build:
-      context: ./farm_management_service
-      dockerfile: Dockerfile.farm_management_service
+      context: .
+      dockerfile: farm_management_service/Dockerfile.farm_management_service
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.farm_management.rule=PathPrefix(`/api/farm-management-service`)"
@@ -79,8 +79,8 @@ services:
 
   rule_service:
     build:
-      context: ./rule_service
-      dockerfile: Dockerfile.rule_service
+      context: .
+      dockerfile: rule_service/Dockerfile.rule_service
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.rule-service.rule=PathPrefix(`/api/rule-service`)"

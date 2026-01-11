@@ -2,7 +2,8 @@ from fastapi import HTTPException, Depends, status
 import abc
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
-from jose import jwt, JWTError
+import jwt
+from jwt.exceptions import PyJWTError
 import os
 from passlib.context import CryptContext
 from typing import Annotated
@@ -42,7 +43,7 @@ async def get_current_user(token: Annotated[str, Depends(Oauth2_bearer)]):
 
         return {"username": username, "id": user_id, "role": role}
 
-    except JWTError:
+    except PyJWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials",
@@ -137,4 +138,4 @@ class BaseService(abc.ABC):
 
 
 db_dependency = Annotated[AsyncSession, Depends(get_db)]
-user_dependency = Annotated[dict, Depends(get_current_user)]
+CurrentUserDependency = Annotated[dict, Depends(get_current_user)]

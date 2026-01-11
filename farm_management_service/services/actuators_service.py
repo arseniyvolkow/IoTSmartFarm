@@ -1,5 +1,5 @@
 from ..models import Actuators, Devices  # Import Devices for the join
-from ..utils import BaseService
+from ..base_service import BaseService
 from sqlalchemy.orm import joinedload
 from sqlalchemy import select, update
 from typing import List, Optional

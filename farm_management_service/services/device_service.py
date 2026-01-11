@@ -1,8 +1,8 @@
 from fastapi import HTTPException, Depends
 from sqlalchemy.exc import IntegrityError
 from starlette import status
-from ..models import Devices, Farms
-from ..utils import BaseService
+from ..models import Devices
+from ..base_service import BaseService
 from sqlalchemy import select
 from ..schemas import DeviceCreate, DeviceRead, DevicePagination
 from sqlalchemy.orm import joinedload, selectinload

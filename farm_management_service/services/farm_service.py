@@ -1,6 +1,6 @@
 from fastapi import HTTPException
 from starlette import status
-from ..utils import BaseService
+from ..base_service import BaseService
 from ..models import Farms
 from ..schemas import FarmCreate
 from sqlalchemy import select

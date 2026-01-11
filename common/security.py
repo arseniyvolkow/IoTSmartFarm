@@ -6,7 +6,7 @@ import jwt
 from jwt.exceptions import InvalidTokenError
 import redis.asyncio as redis
 from .redis_config import is_token_blacklisted
-
+from .schemas import CurrentUser
 
 
 SECRET_KEY = os.getenv("SECRET_KEY", "CHANGE_ME_IN_PROD_SECRET_KEY")
@@ -53,6 +53,21 @@ async def get_token_payload(token: Annotated[str, Depends(oauth2_scheme)]) -> di
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Authentication check unavailable"
         )
+
+
+async def get_current_user_identity(
+    payload: dict = Depends(get_token_payload)
+) -> CurrentUser:
+    """
+    ГЛАВНАЯ ЗАВИСИМОСТЬ ДЛЯ БИЗНЕС-СЕРВИСОВ.
+    Превращает payload токена в удобный объект CurrentUser.
+    Используйте это в Farm/Sensor сервисах.
+    """
+    # Pydantic сам распарсит поля: sub -> id, g_perms, access и т.д.
+    user = CurrentUser(**payload)
+    # Сохраняем сырой payload на всякий случай
+    user.raw_payload = payload
+    return user
 
 
 class CheckAccess:

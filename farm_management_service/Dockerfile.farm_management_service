@@ -4,17 +4,27 @@ FROM python:3.11-slim
 # Set the working directory in the container to /app
 WORKDIR /app
 
-# Copy the current directory contents into the container at /app
-COPY requirements.txt /app
+# 1. Сначала копируем зависимости (для кэширования слоев)
+# Путь изменился, так как контекст теперь в корне
+COPY farm_management_service/requirements.txt /app/requirements.txt
 
-# Install any needed packages specified in requirements.txt
+# Install packages
 RUN pip install --no-cache-dir -r requirements.txt
+# Если для common нужны доп. библиотеки (например, PyJWT), добавьте их:
 
-# Copy the current directory contents into the container at /app
-COPY . /app/farm_management_service
+# 2. Копируем ОБЩУЮ библиотеку
+COPY common /app/common
 
-# Make port 80 available to the world outside this container
+# 3. Копируем код СЕРВИСА
+COPY farm_management_service /app/farm_management_service
+
+# 4. ВАЖНО: Добавляем текущую директорию в PYTHONPATH
+# Это позволит питону видеть папку "common" как модуль
+ENV PYTHONPATH=/app
+
+# Make port 8000 available
 EXPOSE 8000
 
-# Run app.py when the container launches
+# Run app.py
+# Обратите внимание: код лежит в /app/farm_management_service
 CMD ["uvicorn", "farm_management_service.main:app", "--host", "0.0.0.0", "--port", "8000"]

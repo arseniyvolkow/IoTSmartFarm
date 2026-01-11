@@ -1,6 +1,6 @@
 from fastapi import HTTPException
 from starlette import status
-from ..utils import BaseService
+from ..base_service import BaseService
 from ..models import CropManagement
 from sqlalchemy import select
 from ..schemas import CropManagmentCreate
