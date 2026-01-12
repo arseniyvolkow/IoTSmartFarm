@@ -19,7 +19,7 @@ COPY rule_service /app/rule_service
 ENV PYTHONPATH=/app
 
 
-EXPOSE 8007
+EXPOSE 8004
 
 
-CMD ["uvicorn", "rule_service.main:app", "--host", "0.0.0.0", "--port", "8007"]
+CMD ["uvicorn", "rule_service.main:app", "--host", "0.0.0.0", "--port", "8004"]

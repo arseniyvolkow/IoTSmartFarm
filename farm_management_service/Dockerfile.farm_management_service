@@ -23,8 +23,8 @@ COPY farm_management_service /app/farm_management_service
 ENV PYTHONPATH=/app
 
 # Make port 8000 available
-EXPOSE 8000
+EXPOSE 8002
 
 # Run app.py
 # Обратите внимание: код лежит в /app/farm_management_service
-CMD ["uvicorn", "farm_management_service.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "farm_management_service.main:app", "--host", "0.0.0.0", "--port", "8002"]
