@@ -1,30 +1,25 @@
-# Use an official Python runtime as a parent image
+
 FROM python:3.11-slim
 
-# Set the working directory in the container to /app
+
 WORKDIR /app
 
-# 1. Сначала копируем зависимости (для кэширования слоев)
-# Путь изменился, так как контекст теперь в корне
+
 COPY rule_service/requirements.txt /app/requirements.txt
 
-# Install packages
-RUN pip install --no-cache-dir -r requirements.txt
-# Если для common нужны доп. библиотеки (например, PyJWT), добавьте их:
 
-# 2. Копируем ОБЩУЮ библиотеку
+RUN pip install --no-cache-dir -r requirements.txt
+
 COPY common /app/common
 
-# 3. Копируем код СЕРВИСА
+
 COPY rule_service /app/rule_service
 
-# 4. ВАЖНО: Добавляем текущую директорию в PYTHONPATH
-# Это позволит питону видеть папку "common" как модуль
+
 ENV PYTHONPATH=/app
 
-# Make port 8000 available
+
 EXPOSE 8007
 
-# Run app.py
-# Обратите внимание: код лежит в /app/farm_management_service
+
 CMD ["uvicorn", "rule_service.main:app", "--host", "0.0.0.0", "--port", "8007"]

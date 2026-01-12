@@ -1,4 +1,4 @@
-from ..utils import BaseService
+from ..base_service import BaseService
 from ..models import Rules, RuleActions
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload

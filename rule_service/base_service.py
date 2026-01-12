@@ -1,54 +1,9 @@
-from fastapi import HTTPException, Depends, status
+from fastapi import HTTPException, status
 import abc
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
-import jwt
-from jwt.exceptions import PyJWTError
-import os
-from passlib.context import CryptContext
-from typing import Annotated
-from fastapi.security import OAuth2PasswordBearer
 from datetime import datetime
 from sqlalchemy.types import DateTime
-from .database import get_db
-
-
-SECRET_KEY = os.getenv("SECRET_KEY")
-if not SECRET_KEY:
-    raise ValueError("SECRET_KEY environment variable not set")
-
-ALGORITHM = "HS256"
-
-bcrypt_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-Oauth2_bearer = OAuth2PasswordBearer(tokenUrl="/api/user-service/auth/token")
-
-
-async def get_current_user(token: Annotated[str, Depends(Oauth2_bearer)]):
-    """
-    Dependency function to extract user info from JWT token.
-    Use this with Depends() in other routes.
-    """
-    try:
-        payload = jwt.decode(token, SECRET_KEY, ALGORITHM)
-        username: str = payload.get("username")
-        user_id: int = payload.get("id")
-        role: str = payload.get("role")
-
-        if username is None or user_id is None:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Could not validate credentials",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-
-        return {"username": username, "id": user_id, "role": role}
-
-    except PyJWTError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Could not validate credentials",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
 
 
 class BaseService(abc.ABC):
@@ -135,7 +90,3 @@ class BaseService(abc.ABC):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Pagination error"
             )
-
-
-db_dependency = Annotated[AsyncSession, Depends(get_db)]
-CurrentUserDependency = Annotated[dict, Depends(get_current_user)]
