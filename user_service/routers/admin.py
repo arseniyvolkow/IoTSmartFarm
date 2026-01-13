@@ -1,6 +1,6 @@
 from fastapi import APIRouter, status, Depends
-from ..schemas import RoleResponse, RoleCreate, PermissionSet, PermissionResponse
-from ..dependencies import RBACServiceDependency
+from user_service.schemas import RoleResponse, RoleCreate, PermissionSet
+from user_service.dependencies import RBACServiceDependency
 from common.security import CheckAccess
 from typing import List
 

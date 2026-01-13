@@ -3,12 +3,12 @@ from common.security import get_current_user_identity
 from typing import Annotated
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
-from .database import get_db
-from .services.actuators_service import ActuatorService
-from .services.crops_service import CropService
-from .services.device_service import DeviceService
-from .services.farm_service import FarmService
-from .services.sensor_service import SensorService
+from farm_management_service.database import get_db
+from farm_management_service.services.actuators_service import ActuatorService
+from farm_management_service.services.crops_service import CropService
+from farm_management_service.services.device_service import DeviceService
+from farm_management_service.services.farm_service import FarmService
+from farm_management_service.services.sensor_service import SensorService
 
 db_dependency = Annotated[AsyncSession, Depends(get_db)]
 

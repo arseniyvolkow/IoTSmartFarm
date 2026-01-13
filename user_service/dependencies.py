@@ -1,13 +1,13 @@
 from fastapi import Depends, HTTPException, status
-from .database import db_dependency
+from user_service.database import db_dependency
 from sqlalchemy import select
-from .models import User
+from user_service.models import User
 from fastapi.security import HTTPBearer
-from .services.user_service import UserService
+from user_service.services.user_service import UserService
 from typing import Annotated
 from common.security import get_token_payload
-from .services.auth_service import AuthService
-from .services.rbac_service import RBACService
+from user_service.services.auth_service import AuthService
+from user_service.services.rbac_service import RBACService
 
 oauth2_scheme = HTTPBearer()
 

@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, Field
 from typing import Optional, List
 from datetime import datetime
 
@@ -81,7 +81,7 @@ class RoleResponse(RoleBase):
     model_config = ConfigDict(from_attributes=True)
 
 
-class AccessRoleRuleBase:
+class AccessRoleRuleBase(BaseModel):
     role_id: str
     element_id: str
 

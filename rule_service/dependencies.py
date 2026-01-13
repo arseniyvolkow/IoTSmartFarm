@@ -1,9 +1,9 @@
 from typing import Annotated
 from fastapi import Depends
 from common.security import get_current_user_identity
-from .database import get_db
+from rule_service.database import get_db
 from sqlalchemy.ext.asyncio import AsyncSession
-from .services.rules_service import RulesService
+from rule_service.services.rules_service import RulesService
 from common.schemas import CurrentUser
 
 

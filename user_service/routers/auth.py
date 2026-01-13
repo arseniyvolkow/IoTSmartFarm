@@ -1,16 +1,15 @@
 from fastapi import APIRouter, status, Depends
-from schemas import UserRegister, UserLogin, TokenPair, RefreshRequest, UserResponse
-from ..dependencies import (
+from user_service.schemas import UserRegister, UserLogin, TokenPair, RefreshRequest, UserResponse
+from user_service.dependencies import (
     db_dependency,
     get_token_payload,
     UserServiceDependency,
     AuthServiceDependency,
 )
-from ..services.auth_service import AuthService
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
-
+print(f"DEBUG: TokenPair is {TokenPair}")
 @router.post(
     "/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED
 )
@@ -24,14 +23,14 @@ async def register_new_user(
 @router.post("/token", response_model=TokenPair)
 async def login(
     login_data: UserLogin,
-    auth_service: AuthService = AuthServiceDependency,
+    auth_service: AuthServiceDependency,
 ):
     return await auth_service.login_user(login_data)
 
 
 @router.post("/logout")
 async def logout(
-    auth_service: AuthService = AuthServiceDependency,
+    auth_service: AuthServiceDependency,
     # This only decodes the string, it doesn't touch the DB
     payload: dict = Depends(get_token_payload),
 ):
@@ -42,7 +41,7 @@ async def logout(
 @router.post("/refresh", response_model=TokenPair)
 async def refresh_tokens(
     request: RefreshRequest,
-    auth_service: AuthService = AuthServiceDependency,
+    auth_service: AuthServiceDependency,
 ):
 
     return await auth_service.refresh_access_token(request.refresh_token)

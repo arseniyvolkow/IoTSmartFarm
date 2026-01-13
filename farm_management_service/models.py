@@ -1,11 +1,11 @@
-from .database import Base
+from farm_management_service.database import Base
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 from sqlalchemy import Enum, ForeignKey, DateTime, Text, JSON
 from typing import List, Optional
 import uuid
 from sqlalchemy.sql import func
 from datetime import datetime, date
-from .enums import ActuatorState, DeviceStatus
+from farm_management_service.enums import ActuatorState, DeviceStatus
 
 
 def generate_uuid():

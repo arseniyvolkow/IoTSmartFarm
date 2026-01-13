@@ -17,10 +17,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 RUN pip install pyjwt
 
 # 2. Копируем ОБЩУЮ библиотеку
-COPY common /app/common
+COPY common ./common
 
 # 3. Копируем код СЕРВИСА
-COPY sensor_data_service /app/sensor_data_service
+COPY sensor_data_service ./sensor_data_service
 
 # 4. ВАЖНО: Добавляем текущую директорию в PYTHONPATH
 ENV PYTHONPATH=/app

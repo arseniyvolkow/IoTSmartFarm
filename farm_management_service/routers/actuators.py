@@ -1,9 +1,8 @@
 from fastapi import APIRouter, status, Query, Path
 from typing import Optional
-from ..dependencies import db_dependency, CurrentUserDependency
-from ..schemas import ActuatorPagination, ActuatorRead, ActuatorUpdate
-from ..services.actuators_service import ActuatorService
-from common.security import get_token_payload
+from farm_management_service.dependencies import db_dependency, CurrentUserDependency
+from farm_management_service.schemas import ActuatorPagination, ActuatorRead, ActuatorUpdate
+from farm_management_service.services.actuators_service import ActuatorService
 
 router = APIRouter(prefix="/actuators", tags=["Actuators"])
 

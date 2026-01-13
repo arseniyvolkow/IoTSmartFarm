@@ -1,12 +1,12 @@
-from ..base_service import BaseService
-from ..models import Rules, RuleActions
+from rule_service.base_service import BaseService
+from rule_service.models import Rules, RuleActions
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 from typing import Optional
 from fastapi import HTTPException
-from ..schemas import RuleCreate
+from rule_service.schemas import RuleCreate
 from fastapi import status
-from ..enums import RuleTriggerType
+from rule_service.enums import RuleTriggerType
 
 class RulesService(BaseService):
 

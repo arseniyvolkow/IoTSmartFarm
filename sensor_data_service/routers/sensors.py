@@ -1,13 +1,13 @@
 import asyncio
 import logging
 from fastapi import APIRouter, HTTPException, status, Depends
-from typing import Annotated
+
 
 # Импорты схем
-from ..schemas import ActuatorPayload, SensorDataBatch
+from sensor_data_service.schemas import ActuatorPayload, SensorDataBatch
 
 # Импорты зависимостей (Наш новый файл)
-from ..dependencies import InfluxServiceDependency, RedisServiceDependency, MQTTServiceDependency
+from sensor_data_service.dependencies import InfluxServiceDependency, RedisServiceDependency, MQTTServiceDependency
 
 # Импорты безопасности (Из Common Lib)
 from common.security import CheckAccess

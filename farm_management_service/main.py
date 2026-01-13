@@ -1,8 +1,8 @@
 from fastapi import FastAPI
-from .models import Base
-from .database import engine
+from farm_management_service.models import Base
+from farm_management_service.database import engine
 from contextlib import asynccontextmanager
-from .routers import devices, farms, crops, sensors, actuators
+from farm_management_service.routers import devices, farms, crops, sensors, actuators
 
 
 @asynccontextmanager

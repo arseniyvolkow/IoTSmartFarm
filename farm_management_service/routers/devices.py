@@ -2,12 +2,10 @@ from fastapi import APIRouter, HTTPException, Query, Path, UploadFile, File
 from typing import Optional
 import httpx
 from starlette import status
-from ..services.device_service import DeviceService
-from ..schemas import DeviceCreate, DevicePagination, DeviceRead
-from ..services.farm_service import FarmService
-from ..services.actuators_service import ActuatorService
-from ..services.sensor_service import SensorService
-from ..dependencies import db_dependency, CurrentUserDependency, DeviceServiceDependency, FarmServiceDependency
+from farm_management_service.schemas import DeviceCreate, DevicePagination, DeviceRead
+from farm_management_service.services.actuators_service import ActuatorService
+from farm_management_service.services.sensor_service import SensorService
+from farm_management_service.dependencies import db_dependency, CurrentUserDependency, DeviceServiceDependency, FarmServiceDependency
 
 
 router = APIRouter(prefix="/devices", tags=["Devices"])

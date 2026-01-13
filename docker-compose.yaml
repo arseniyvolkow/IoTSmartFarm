@@ -97,8 +97,8 @@ services:
 
   rule_worker:
     build:
-      context: ./rule_worker
-      dockerfile: Dockerfile.rule_worker
+      context: .
+      dockerfile: rule_worker/Dockerfile.rule_worker
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.rule-worker.rule=PathPrefix(`/api/rule-worker`)"

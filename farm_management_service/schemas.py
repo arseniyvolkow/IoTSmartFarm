@@ -1,9 +1,8 @@
 from typing import Any, Optional
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict
 from datetime import date, datetime
 from typing import Optional, List, TypeVar, Generic
-from enum import Enum as PyEnum
-from .enums import ActuatorState, DeviceStatus
+from farm_management_service.enums import ActuatorState, DeviceStatus
 
 T = TypeVar("T")
 

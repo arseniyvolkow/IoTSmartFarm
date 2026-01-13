@@ -3,7 +3,7 @@ from pydantic import BaseModel, ConfigDict
 from datetime import  datetime
 from enum import Enum as PyEnum
 from typing import Optional, List
-from .enums import *
+from rule_service.enums import *
 
 class RuleActionPayload(BaseModel):
     """A generic model for the action payload (e.g., recipient, MQTT topic)."""

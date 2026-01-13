@@ -1,16 +1,16 @@
 from fastapi import HTTPException, Depends
 from sqlalchemy.exc import IntegrityError
 from starlette import status
-from ..models import Devices
-from ..base_service import BaseService
+from farm_management_service.models import Devices
+from farm_management_service.base_service import BaseService
 from sqlalchemy import select
-from ..schemas import DeviceCreate, DeviceRead, DevicePagination
+from farm_management_service.schemas import DeviceCreate, DeviceRead, DevicePagination
 from sqlalchemy.orm import joinedload, selectinload
 from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
-from ..database import get_db
-from ..services.sensor_service import SensorService
-from ..services.actuators_service import ActuatorService
+from farm_management_service.database import get_db
+from farm_management_service.services.sensor_service import SensorService
+from farm_management_service.services.actuators_service import ActuatorService
 
 
 class DeviceService(BaseService):

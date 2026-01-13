@@ -6,7 +6,7 @@ from sqlalchemy.dialects.postgresql import insert
 from fastapi import HTTPException
 
 # Импортируем новые модели
-from ..models import Role, RoleAccess
+from user_service.models import Role, RoleAccess
 
 
 class RBACService:

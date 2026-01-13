@@ -1,9 +1,8 @@
 from fastapi import APIRouter, Query, Path, status
 from typing import Optional
-from .crops import CropService
-from ..schemas import FarmCreate, FarmPagination, FarmUpdate, FarmRead
-from ..services.farm_service import FarmService
-from ..dependencies import db_dependency, CurrentUserDependency
+from farm_management_service.schemas import FarmCreate, FarmPagination, FarmUpdate, FarmRead
+from farm_management_service.services.farm_service import FarmService
+from farm_management_service.dependencies import db_dependency, CurrentUserDependency, CropServiceDependency, FarmServiceDependency
 
 router = APIRouter(prefix="/farms", tags=["Farms and Crops management"])
 
@@ -21,13 +20,12 @@ async def add_new_farm(
 
 @router.get("/all", status_code=status.HTTP_200_OK, response_model=FarmPagination)
 async def get_all_farms(
-    db: db_dependency,
+    farm_service: FarmServiceDependency,
     current_user: CurrentUserDependency,
     sort_column: Optional[str] = None,
     cursor: Optional[str] = Query(None),
     limit: Optional[int] = Query(10, le=200),
 ):
-    farm_service = FarmService(db)
     items, next_cursor = await farm_service.get_all_farms(
         current_user.id, sort_column, cursor, limit
     )
@@ -36,11 +34,10 @@ async def get_all_farms(
 
 @router.get("/farm/{farm_id}", status_code=status.HTTP_200_OK, response_model=FarmRead)
 async def get(
-    db: db_dependency,
+    farm_service: FarmServiceDependency,
     current_user: CurrentUserDependency,
     farm_id: str = Path(max_length=100),
 ):
-    farm_service = FarmService(db)
     farm_entity = await farm_service.get(farm_id)
     await farm_service.check_access(farm_entity, current_user.id)
     return farm_entity
@@ -48,12 +45,11 @@ async def get(
 
 @router.put("/farm/{farm_id}")
 async def update_farm_info(
-    db: db_dependency,
+    farm_service: FarmServiceDependency,
     farm: FarmUpdate,
     current_user: CurrentUserDependency,
     farm_id: str = Path(max_length=100),
 ):
-    farm_service = FarmService(db)
     farm_entity = await farm_service.get(farm_id)
     await farm_service.check_access(farm_entity, current_user.id)
     await farm_service.update(farm_entity, **farm.model_dump())
@@ -62,15 +58,14 @@ async def update_farm_info(
 
 @router.patch("/farm/{farm_id}", status_code=status.HTTP_200_OK)
 async def assign_crop_to_farm(
-    db: db_dependency,
+    crop_service: CropServiceDependency,
+    farm_service: FarmServiceDependency,
     current_user: CurrentUserDependency,
     farm_id: str = Path(max_length=100),
     crop_id: str = Query(max_length=100),
 ):
-    farm_service = FarmService(db)
     farm_entity = await farm_service.get(farm_id)
     await farm_service.check_access(farm_entity, current_user.id)
-    crop_service = CropService(db)
     crop_entity = await crop_service.get(crop_id)
     await crop_service.assign_crop_to_farm(farm_entity, crop_entity)
     return {"details": "Crop assigned to farm!"}
@@ -78,11 +73,10 @@ async def assign_crop_to_farm(
 
 @router.delete("/farm/{farm_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_farm(
-    db: db_dependency,
+    farm_service: FarmServiceDependency,
     current_user: CurrentUserDependency,
     farm_id: str = Path(max_length=100),
 ):
-    farm_service = FarmService(db)
     farm_entity = await farm_service.get(farm_id)
     await farm_service.check_access(farm_entity, current_user.id)
     await farm_service.delete(farm_entity)

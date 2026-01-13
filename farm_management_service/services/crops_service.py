@@ -1,9 +1,9 @@
 from fastapi import HTTPException
 from starlette import status
-from ..base_service import BaseService
-from ..models import CropManagement
+from farm_management_service.base_service import BaseService
+from farm_management_service.models import CropManagement
 from sqlalchemy import select
-from ..schemas import CropManagmentCreate
+from farm_management_service.schemas import CropManagmentCreate
 
 
 class CropService(BaseService):

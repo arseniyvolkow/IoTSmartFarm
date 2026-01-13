@@ -1,15 +1,16 @@
-# Use an official Python runtime as a parent image
 FROM python:3.11-slim
 
-# Set the working directory in the container
 WORKDIR /app
 
-# Copy requirements and install packages
-COPY requirements.txt .
+# 1. Fix the path to requirements.txt
+# Since context is '.', you must specify the folder
+COPY rule_worker/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the application code
+# 2. Copy the entire project
+# This puts 'rule_worker', 'common', etc., into /app
 COPY . .
 
-# Run the rule worker when the container launches
-CMD ["python", "__main__.py"]
+# 3. Run as a module
+# This ensures absolute imports like 'from rule_worker.worker' work
+CMD ["python", "-m", "rule_worker"]

@@ -1,8 +1,7 @@
 from fastapi import APIRouter, Query, Path, status
 from typing import Optional
-from ..services.rules_service import RulesService
-from ..schemas import RuleCreate, RuleUpdate
-from ..dependencies import CurrentUserDependency, db_dependency, RulesServiceDependency
+from rule_service.schemas import RuleCreate, RuleUpdate
+from rule_service.dependencies import CurrentUserDependency, RulesServiceDependency
 
 
 router = APIRouter(prefix="/rules", tags=["Rules and Actions"])

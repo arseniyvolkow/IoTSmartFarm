@@ -10,10 +10,10 @@ COPY rule_service/requirements.txt /app/requirements.txt
 
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY common /app/common
+COPY common ./common
 
 
-COPY rule_service /app/rule_service
+COPY rule_service ./rule_service
 
 
 ENV PYTHONPATH=/app

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, status, Response, Depends
-from ..schemas import UserUpdate
-from ..dependencies import (
+from user_service.schemas import UserUpdate
+from user_service.dependencies import (
     UserServiceDependency,
     CurrentUserDependency
 )

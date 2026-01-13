@@ -1,12 +1,12 @@
-from ..models import Sensors, Devices
-from ..base_service import BaseService
+from farm_management_service.models import Sensors, Devices
+from farm_management_service.base_service import BaseService
 from sqlalchemy.orm import joinedload
 from sqlalchemy import select, update
 from typing import List, Optional
-from ..schemas import SensorBase, SensorRead
+from farm_management_service.schemas import SensorBase, SensorRead
 from fastapi import HTTPException, status, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
-from ..database import get_db
+from farm_management_service.database import get_db
 
 
 class SensorService(BaseService):

@@ -1,8 +1,8 @@
 from fastapi import APIRouter, HTTPException, Query, Path, status
 from typing import Optional
-from ..models import Crops, CropManagement
+from farm_management_service.models import Crops, CropManagement
 from sqlalchemy import select
-from ..schemas import (
+from farm_management_service.schemas import (
     CropManagmentCreate,
     CropManagmentUpdate,
     CropManagmentRead,
@@ -10,8 +10,8 @@ from ..schemas import (
     CropTypesPagination,
     CropRead,
 )
-from ..services.crops_service import CropService
-from ..dependencies import db_dependency, CurrentUserDependency
+from farm_management_service.services.crops_service import CropService
+from farm_management_service.dependencies import db_dependency, CurrentUserDependency
 
 router = APIRouter(prefix="/crop", tags=["Crops"])
 

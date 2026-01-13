@@ -13,10 +13,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Если для common нужны доп. библиотеки (например, PyJWT), добавьте их:
 
 # 2. Копируем ОБЩУЮ библиотеку
-COPY common /app/common
+COPY common ./common
 
 # 3. Копируем код СЕРВИСА
-COPY farm_management_service /app/farm_management_service
+COPY farm_management_service ./farm_management_service
 
 # 4. ВАЖНО: Добавляем текущую директорию в PYTHONPATH
 # Это позволит питону видеть папку "common" как модуль

@@ -1,11 +1,11 @@
-from .database import Base
+from rule_service.database import Base
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 from sqlalchemy import Enum, ForeignKey, DateTime, Text, JSON, Index
 from typing import List, Optional
 import uuid
 from sqlalchemy.sql import func
 from datetime import datetime, date
-from .enums import *
+from rule_service.enums import *
 
 def generate_uuid():
     return str(uuid.uuid4())

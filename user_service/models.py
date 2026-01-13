@@ -1,4 +1,4 @@
-from .database import Base
+from user_service.database import Base
 import uuid
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 from sqlalchemy import ForeignKey, String, Boolean

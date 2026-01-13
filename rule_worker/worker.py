@@ -1,4 +1,3 @@
-# rule_worker.py (Updated)
 import asyncio
 import logging
 import os
@@ -12,10 +11,11 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import joinedload
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from database import get_db
-from models import Rules, RuleTriggerType
-from services.redis_service import RedisService
-from action_executor import ActionExecutor  # Import the new class
+# Локальные импорты
+from rule_worker.database import get_db
+from rule_worker.models import Rules, RuleTriggerType
+from rule_worker.services.redis_service import RedisService
+from rule_worker.services.action_executor import ActionExecutor
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +28,7 @@ class RuleWorker:
         self._owns_http_client = http_client is None
         self.http_client = http_client or httpx.AsyncClient(timeout=30.0)
         
-        # New: Instantiate the ActionExecutor and pass dependencies
+        # Instantiate the ActionExecutor and pass dependencies
         sensor_service_url = os.getenv("SENSOR_DATA_SERVICE_HOST", "http://sensor_data_service:8000")
         self.action_executor = ActionExecutor(self.http_client, sensor_service_url)
 
@@ -38,15 +38,16 @@ class RuleWorker:
             await self.http_client.aclose()
             logger.info("HTTP client closed")
 
-    # New helper method
     def _is_rule_on_cooldown(self, rule: Rules) -> bool:
         """Check if the rule is currently on cooldown."""
         if not rule.last_triggered_at:
             return False
 
-        # Ensure consistent timezone awareness
         now = datetime.now(timezone.utc)
-        last_triggered = rule.last_triggered_at.astimezone(timezone.utc)
+        if rule.last_triggered_at.tzinfo is None:
+            last_triggered = rule.last_triggered_at.replace(tzinfo=timezone.utc)
+        else:
+            last_triggered = rule.last_triggered_at.astimezone(timezone.utc)
         
         time_since_triggered = now - last_triggered
         is_on_cooldown = time_since_triggered < timedelta(seconds=rule.cooldown_seconds)
@@ -55,7 +56,6 @@ class RuleWorker:
             logger.debug(f"Rule '{rule.rule_name}' is on cooldown. Skipping.")
         return is_on_cooldown
 
-    # New helper method
     async def _prepare_context(self, rule: Rules) -> Optional[Dict[str, Any]]:
         """Prepare the context dictionary for rule evaluation."""
         context = {
@@ -70,11 +70,28 @@ class RuleWorker:
                 return None
             
             sensor_data = await self.redis_service.get_json(rule.sensor_id)
-            if sensor_data is None or "value" not in sensor_data:
-                logger.warning(f"No valid data for sensor {rule.sensor_id}. Skipping.")
+            
+            if sensor_data is None:
+                # Fallback to raw string value
+                raw_val = await self.redis_service.get(rule.sensor_id)
+                if raw_val is not None:
+                    try:
+                        context["value"] = float(raw_val)
+                        context["sensor_id"] = rule.sensor_id
+                        return context
+                    except ValueError:
+                        pass
+                logger.debug(f"No valid data for sensor {rule.sensor_id}. Skipping.")
                 return None
             
-            context["value"] = float(sensor_data["value"])
+            if isinstance(sensor_data, dict) and "value" in sensor_data:
+                context["value"] = float(sensor_data["value"])
+            else:
+                try:
+                    context["value"] = float(sensor_data)
+                except (ValueError, TypeError):
+                    return None
+            
             context["sensor_id"] = rule.sensor_id
 
         elif rule.trigger_type == RuleTriggerType.TIME_BASED:
@@ -89,7 +106,6 @@ class RuleWorker:
         
         return context
 
-    # New helper method
     async def _execute_matched_rule_actions(self, rule: Rules, context: Dict[str, Any], db: AsyncSession):
         """Execute all actions for a matched rule and update its timestamp."""
         logger.info(f"✅ Rule '{rule.rule_name}' MATCHED! Context: {context}")
@@ -100,14 +116,13 @@ class RuleWorker:
         for action in sorted_actions:
             action_dict = {
                 "action_id": action.action_id,
-                "action_type": action.action_type.value, # Use .value for Enum
+                "action_type": action.action_type.value if hasattr(action.action_type, 'value') else action.action_type,
                 "action_payload": action.action_payload,
             }
             success = await self.action_executor.execute(action_dict, context)
             if not success:
                 logger.warning(f"⚠️ Action {action.action_id} failed for rule '{rule.rule_name}'.")
 
-        # Update last triggered timestamp
         try:
             stmt = update(Rules).where(Rules.rule_id == rule.rule_id).values(last_triggered_at=datetime.now(timezone.utc))
             await db.execute(stmt)
@@ -117,18 +132,18 @@ class RuleWorker:
             logger.error(f"Failed to update last_triggered_at for rule {rule.rule_id}: {e}")
             await db.rollback()
 
-    # Refactored main evaluation method
     async def evaluate_single_rule(self, rule: Rules, db_session: AsyncSession) -> bool:
-        """Evaluate a single rule and execute actions if it matches."""
+        """Evaluate a single rule."""
         if self._is_rule_on_cooldown(rule):
             return False
 
         try:
             context = await self._prepare_context(rule)
             if context is None:
-                return False  # Cannot evaluate without context
+                return False
 
             rule_engine_obj = rule_engine.Rule(rule.rule_expression)
+            
             if rule_engine_obj.matches(context):
                 await self._execute_matched_rule_actions(rule, context, db_session)
                 return True
@@ -143,7 +158,6 @@ class RuleWorker:
         
         return False
 
-    # This method remains largely the same, but is now much cleaner
     async def evaluate_rules(self, db_session: AsyncSession):
         """Evaluate all active rules."""
         logger.info(f"[{datetime.now().isoformat()}] Starting rule evaluation cycle")
@@ -162,13 +176,13 @@ class RuleWorker:
                 return
 
             logger.info(f"📋 Evaluating {len(rules)} active rules")
+            
             tasks = [self.evaluate_single_rule(rule, db_session) for rule in rules]
             results = await asyncio.gather(*tasks, return_exceptions=True)
 
             triggered_count = sum(1 for res in results if res is True)
-            evaluated_count = len(rules)
             
-            logger.info(f"✅ Cycle complete. Evaluated: {evaluated_count}, Triggered: {triggered_count}")
+            logger.info(f"✅ Cycle complete. Evaluated: {len(rules)}, Triggered: {triggered_count}")
 
         except Exception as e:
             logger.error(f"❌ Critical error in evaluation cycle: {e}", exc_info=True)
@@ -178,23 +192,14 @@ class RuleWorker:
 async def run_rule_worker_daemon(interval_seconds: int = 60):
     """
     Run the rule worker continuously with proper dependency management.
-
-    This is the main entry point for the background worker daemon.
-    It manages the lifecycle of Redis, HTTP client, and database sessions.
-
-    Args:
-        interval_seconds: Time between evaluation cycles
     """
     logger.info(f"🚀 Starting rule worker daemon with {interval_seconds}s interval")
 
-    # Initialize dependencies
     redis_service = None
     rule_worker = None
 
     try:
-        # ========================================
-        # STEP 1: Initialize Redis Service
-        # ========================================
+        # 1. Initialize Redis Service
         logger.info("📡 Initializing Redis connection...")
         redis_service = RedisService(
             host=os.getenv("REDIS_HOST", "localhost"),
@@ -206,20 +211,15 @@ async def run_rule_worker_daemon(interval_seconds: int = 60):
         await redis_service.connect()
         logger.info("✅ Redis connected successfully")
 
-        # Verify connection
         if not redis_service.is_connected():
             raise Exception("Redis connection verification failed")
 
-        # ========================================
-        # STEP 2: Create RuleWorker with DI
-        # ========================================
-        logger.info("⚙️  Initializing RuleWorker with Redis service...")
+        # 2. Create RuleWorker
+        logger.info("⚙️  Initializing RuleWorker...")
         rule_worker = RuleWorker(redis_service=redis_service)
         logger.info("✅ RuleWorker initialized")
 
-        # ========================================
-        # STEP 3: Main Evaluation Loop
-        # ========================================
+        # 3. Main Evaluation Loop
         cycle_count = 0
         logger.info("🔄 Entering main evaluation loop...")
 
@@ -230,25 +230,20 @@ async def run_rule_worker_daemon(interval_seconds: int = 60):
                 logger.info(f"🔄 Starting evaluation cycle #{cycle_count}")
                 logger.info(f"{'='*60}")
 
-                # Create a fresh DB session for this cycle
                 async with get_db() as db_session:
                     await rule_worker.evaluate_rules(db_session)
 
                 logger.info(f"{'='*60}")
-                logger.info(
-                    f"💤 Cycle #{cycle_count} complete. Sleeping for {interval_seconds}s"
-                )
+                logger.info(f"💤 Cycle #{cycle_count} complete. Sleeping for {interval_seconds}s")
                 logger.info(f"{'='*60}\n")
+                
                 await asyncio.sleep(interval_seconds)
 
             except KeyboardInterrupt:
                 logger.info("⚠️  Daemon stopped by user (KeyboardInterrupt)")
                 break
             except Exception as e:
-                logger.error(
-                    f"❌ Error in daemon loop (cycle #{cycle_count}): {e}",
-                    exc_info=True,
-                )
+                logger.error(f"❌ Error in daemon loop (cycle #{cycle_count}): {e}", exc_info=True)
                 logger.info("⏳ Waiting 10 seconds before retry...")
                 await asyncio.sleep(10)
 
@@ -257,23 +252,9 @@ async def run_rule_worker_daemon(interval_seconds: int = 60):
         raise
 
     finally:
-        # ========================================
-        # STEP 4: Cleanup Resources
-        # ========================================
         logger.info("\n🧹 Starting cleanup...")
-
         if rule_worker:
-            try:
-                await rule_worker.close()
-                logger.info("✅ RuleWorker closed")
-            except Exception as e:
-                logger.error(f"Error closing RuleWorker: {e}")
-
+            await rule_worker.close()
         if redis_service:
-            try:
-                await redis_service.disconnect()
-                logger.info("✅ Redis disconnected")
-            except Exception as e:
-                logger.error(f"Error disconnecting Redis: {e}")
-
+            await redis_service.disconnect()
         logger.info("👋 Rule worker daemon shut down complete")

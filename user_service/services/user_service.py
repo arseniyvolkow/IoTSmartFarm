@@ -1,10 +1,10 @@
 from sqlalchemy import update, select
 import re
 from fastapi import HTTPException, status
-from ..models import User, Role
-from ..schemas import UserRegister, UserUpdate
+from user_service.models import User, Role
+from user_service.schemas import UserRegister, UserUpdate
 from sqlalchemy.ext.asyncio import AsyncSession
-from ..security import hash_password
+from user_service.security import hash_password
 from typing import Optional
 
 

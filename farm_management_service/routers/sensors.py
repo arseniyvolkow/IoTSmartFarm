@@ -1,8 +1,8 @@
 from fastapi import APIRouter, status, Query, Path
-from ..schemas import SensorRead, SensorUpdate, SensorPagination
+from farm_management_service.schemas import SensorRead, SensorUpdate, SensorPagination
 from typing import Optional
-from ..dependencies import db_dependency, CurrentUserDependency
-from ..services.sensor_service import SensorService
+from farm_management_service.dependencies import db_dependency, CurrentUserDependency
+from farm_management_service.services.sensor_service import SensorService
 
 
 router = APIRouter(prefix="/sensors", tags=["Sensors"])
