@@ -5,7 +5,7 @@ from datetime import datetime
 
 class UserRegister(BaseModel):
     email: str
-    password: str = Field(min_length=6)
+    password: str = Field(min_length=8) # Match the 8-char requirement in service
     password_confirm: str
     first_name: str
     last_name: str
@@ -18,9 +18,16 @@ class UserLogin(BaseModel):
 
 
 class UserUpdate(BaseModel):
-    first_name: Optional[str]
-    second_name: Optional[str]
-    middle_name: Optional[str]
+    """
+    Updated to include email and password as expected by UserService.update_user.
+    Standardized 'second_name' to 'last_name' to match the model.
+    """
+    email: Optional[str] = None
+    password: Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    middle_name: Optional[str] = None
+    is_active: Optional[bool] = None
 
 
 class TokenPair(BaseModel):
@@ -46,7 +53,7 @@ class UserBase(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 class UserResponse(UserBase):
-    role_id: str
+    role_id: Optional[str] = None # Role might be null initially
 
 
 class PermissionBase(BaseModel):
@@ -56,13 +63,10 @@ class PermissionBase(BaseModel):
     can_delete: bool = False
 
 class PermissionSet(PermissionBase):
-    """Для входящих данных при создании/обновлении прав"""
     pass
 
 class PermissionResponse(PermissionBase):
-    """Для отображения прав внутри RoleResponse"""
-    id: str  # В модели RoleAccess это String (UUID)
-    
+    id: str
     model_config = ConfigDict(from_attributes=True)
 
 class RoleBase(BaseModel):
@@ -74,18 +78,14 @@ class RoleCreate(RoleBase):
     pass
 
 class RoleResponse(RoleBase):
-    id: str  # В модели Role это String (UUID)
-    # Поле называется access_list, как relationship в модели Role
+    id: str
     access_list: List[PermissionResponse] = []
-
     model_config = ConfigDict(from_attributes=True)
 
 
 class AccessRoleRuleBase(BaseModel):
     role_id: str
     element_id: str
-
-    # Разрешения (Permissions)
     read_permission: bool = False
     read_all_permission: bool = False
     create_permission: bool = False
@@ -96,19 +96,9 @@ class AccessRoleRuleBase(BaseModel):
 
 
 class AccessRoleRuleCreate(AccessRoleRuleBase):
-    """Схема для создания нового правила доступа (ввод)."""
-
     pass
 
 
 class AccessRoleRuleResponse(AccessRoleRuleBase):
-    """Схема для ответа с данными правила доступа."""
-
     id: str
-
-    # Дополнительно можно добавить данные самой роли и элемента для удобства
-    # role: RoleResponse
-    # element: BusinessElementResponse
-
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

@@ -29,16 +29,17 @@ class User(Base):
     # Статус активности для "мягкого" удаления
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
-    # Связь с ролями (FK)
-    role_id: Mapped[str] = mapped_column(ForeignKey("roles.id"))
+    # FIX: Изменено на Optional[str] и добавлено nullable=True
+    # Это позволяет создавать пользователя без немедленного назначения роли
+    role_id: Mapped[Optional[str]] = mapped_column(ForeignKey("roles.id"), nullable=True)
 
-    # Связь ORM (один ко многим)
-    role: Mapped["Role"] = relationship(back_populates="users")
+    # Связь ORM (много к одному)
+    role: Mapped[Optional["Role"]] = relationship(back_populates="users")
 
     # Временные метки
-    created_at: Mapped[datetime] = mapped_column(default=datetime.now())
+    created_at: Mapped[datetime] = mapped_column(default=datetime.now)
     updated_at: Mapped[datetime] = mapped_column(
-        default=datetime.now(), onupdate=datetime.now()
+        default=datetime.now, onupdate=datetime.now
     )
 
 
@@ -57,10 +58,12 @@ class Role(Base):
         Boolean, default=False
     )
     
+    # Двусторонняя связь с пользователями
+    users: Mapped[List["User"]] = relationship(back_populates="role")
+
     access_list: Mapped[List["RoleAccess"]] = relationship(
         back_populates="role", cascade="all, delete-orphan", lazy="selectin"
     )
-
 
     def __repr__(self):
         return f"<Role(name='{self.name}', all_R={self.can_read_all}, all_W={self.can_write_all})>"
@@ -75,20 +78,17 @@ class RoleAccess(Base):
 
     role_id: Mapped[str] = mapped_column(ForeignKey("roles.id", ondelete="CASCADE"))
 
-    # Название ресурса, например: "farms", "sensors", "users", "reports"
+    # Название ресурса, например: "farms", "sensors"
     resource: Mapped[str] = mapped_column(String, index=True)
 
-    # Ваши Boolean флаги (CRUD)
+    # Boolean флаги (CRUD)
     can_read: Mapped[bool] = mapped_column(Boolean, default=False)
     can_write: Mapped[bool] = mapped_column(Boolean, default=False)
     can_delete: Mapped[bool] = mapped_column(Boolean, default=False)
 
-    # Можно добавить специфичные флаги, если нужно
-    # can_execute: Mapped[bool] = mapped_column(Boolean, default=False)
-
     role: Mapped["Role"] = relationship(back_populates="access_list")
 
-    # Уникальность: у одной роли может быть только одна запись про "farms"
+    # Уникальность: у одной роли может быть только одна запись про конкретный ресурс
     __table_args__ = (UniqueConstraint("role_id", "resource", name="uq_role_resource"),)
 
     def __repr__(self):

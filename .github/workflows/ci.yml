@@ -1,6 +1,5 @@
 name: SmartFarm CI
 
-# Триггеры: запускаем тесты при пуше в ветки main/master или при создании Pull Request
 on:
   push:
     branches: [ "main", "master" ]
@@ -11,12 +10,11 @@ jobs:
   test-service:
     runs-on: ubuntu-latest
     strategy:
-      fail-fast: false # Если один сервис упал, остальные продолжат тестироваться
+      fail-fast: false 
       matrix:
-        # Перечисляем папки твоих сервисов
-        service: [user_service, farm_management_service, sensor_data_service, rule_service, rule_worker]
+        # Added 'common' to the matrix to run shared logic tests
+        service: [common, user_service, farm_management_service, sensor_data_service, rule_service, rule_worker]
 
-    # Поднимаем временные базы данных для тестов (Service Containers)
     services:
       postgres:
         image: postgres:15
@@ -26,7 +24,6 @@ jobs:
           POSTGRES_DB: test_db
         ports:
           - 5432:5432
-        # Ждем, пока база будет готова
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
@@ -55,23 +52,19 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install flake8 pytest pytest-asyncio httpx
+        # Added pyjwt and fakeredis which are required for common/tests
+        pip install flake8 pytest pytest-asyncio httpx pyjwt fakeredis
         
-        # Устанавливаем зависимости конкретного сервиса из матрицы
         if [ -f ${{ matrix.service }}/requirements.txt ]; then
           pip install -r ${{ matrix.service }}/requirements.txt
-        else
-          echo "⚠️ WARNING: No requirements.txt found in ${{ matrix.service }}"
         fi
 
     - name: Lint with Flake8
       run: |
-        # Проверяем стиль кода (игнорируем длину строки E501, чтобы не было лишнего шума)
         flake8 ${{ matrix.service }} --count --select=E9,F63,F7,F82 --show-source --statistics
         flake8 ${{ matrix.service }} --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
 
     - name: Run Tests
-      # Задаем переменные окружения, чтобы тесты могли подключиться к тестовым БД
       env:
         POSTGRES_USER: test_user
         POSTGRES_PASSWORD: test_password
@@ -80,13 +73,13 @@ jobs:
         POSTGRES_PORT: 5432
         REDIS_HOST: localhost
         REDIS_PORT: 6379
-        SECRET_KEY: "test_secret_key" # Для тестов JWT
+        SECRET_KEY: "test_secret_key"
         ALGORITHM: "HS256"
+        # FIX: Ensure python finds the 'common' package from the root
+        PYTHONPATH: .
       run: |
-        # Проверяем, есть ли папка tests или файлы test_*.py
         if [ -d "${{ matrix.service }}/tests" ] || ls ${{ matrix.service }} | grep -q "test_"; then
            echo "🚀 Running tests for ${{ matrix.service }}..."
-           # Запускаем pytest внутри папки сервиса
            pytest ${{ matrix.service }}
         else
            echo "⚠️ No tests found for ${{ matrix.service }}, skipping..."

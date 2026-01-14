@@ -4,10 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from sqlalchemy.dialects.postgresql import insert
 from fastapi import HTTPException
-
-# Импортируем новые модели
 from user_service.models import Role, RoleAccess
-
 
 class RBACService:
     def __init__(self, db: AsyncSession):
@@ -19,31 +16,23 @@ class RBACService:
         can_read_all: bool = False, 
         can_write_all: bool = False
     ) -> Role:
-        """
-        Создает новую роль.
-        Поддерживает глобальные флаги can_read_all/can_write_all (для супер-админов).
-        """
-        # 1. Проверяем, существует ли роль
         stmt = select(Role).where(Role.name == name)
         result = await self.db.execute(stmt)
         if result.scalars().first():
             raise HTTPException(status_code=400, detail=f"Role '{name}' already exists")
 
-        # 2. Создаем
         new_role = Role(
             name=name, 
             can_read_all=can_read_all, 
             can_write_all=can_write_all
         )
         self.db.add(new_role)
-        
         await self.db.commit()
         await self.db.refresh(new_role)
         return new_role
 
     async def get_role_by_name(self, name: str) -> Role:
-        """Вспомогательный метод для получения роли по имени"""
-        stmt = select(Role).where(Role.name == name)
+        stmt = select(Role).where(Role.name == name).options(selectinload(Role.access_list))
         result = await self.db.execute(stmt)
         role = result.scalars().first()
         
@@ -59,14 +48,10 @@ class RBACService:
         can_write: bool = False, 
         can_delete: bool = False
     ) -> Role:
-        """
-        Устанавливает или обновляет права роли на конкретный ресурс.
-        Использует PostgreSQL UPSERT (INSERT ... ON CONFLICT UPDATE).
-        """
-        # 1. Получаем роль (чтобы узнать её ID)
+        # 1. Get role ID
         role = await self.get_role_by_name(role_name)
 
-        # 2. Подготавливаем запрос вставки (INSERT)
+        # 2. Perform UPSERT
         insert_stmt = insert(RoleAccess).values(
             role_id=role.id,
             resource=resource,
@@ -75,11 +60,8 @@ class RBACService:
             can_delete=can_delete
         )
 
-        # 3. Добавляем логику "ON CONFLICT"
-        # Если запись для (role_id, resource) уже есть (благодаря UniqueConstraint 'uq_role_resource'),
-        # то мы обновляем булевы флаги.
         do_update_stmt = insert_stmt.on_conflict_do_update(
-            constraint='uq_role_resource', # Должно совпадать с именем в __table_args__ модели
+            constraint='uq_role_resource',
             set_={
                 "can_read": insert_stmt.excluded.can_read,
                 "can_write": insert_stmt.excluded.can_write,
@@ -90,18 +72,13 @@ class RBACService:
         await self.db.execute(do_update_stmt)
         await self.db.commit()
 
-        # Перезапрашиваем роль с предзагрузкой прав, чтобы pydantic их увидел
-        stmt = (
-            select(Role)
-            .where(Role.name == role_name)
-            .options(selectinload(Role.access_list))
-        )
-        result = await self.db.execute(stmt)
-        return result.scalars().first()
-
+        # FIX: Explicitly refresh the role to force reload the access_list relationship
+        # This ensures the UPSERTED rows are visible in the returned object
+        await self.db.refresh(role, ["access_list"])
+        return role
 
     async def get_all_roles(self) -> List[Role]:
-        stmt = select(Role)
+        stmt = select(Role).options(selectinload(Role.access_list))
         result = await self.db.execute(stmt)
         return result.scalars().all()
 

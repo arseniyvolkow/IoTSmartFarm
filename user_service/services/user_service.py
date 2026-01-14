@@ -41,12 +41,7 @@ class UserService:
         )
         if email_exists.scalars().first():
             raise HTTPException(status_code=400, detail="Email already registered")
-        # check if username exist
-        username_exists = await self.db.execute(
-            select(User).filter(User.username == new_user.username)
-        )
-        if username_exists.scalars().first():
-            raise HTTPException(status_code=400, detail="Username already exists")
+
         # password validation
         password = new_user.password
         if (
@@ -73,23 +68,34 @@ class UserService:
         return create_user_model
 
     async def update_user(self, user_id: str, user_update: UserUpdate) -> User:
-        """Обновление профиля."""
+        """Обновление профиля пользователя."""
         user = await self.get_user_by_id(user_id)
-
+    
+        # Обновление Email с проверкой на уникальность
         if user_update.email is not None:
-            # Проверка на дубликат email, если он меняется
             if user_update.email != user.email:
                 if await self.get_user_by_email(user_update.email):
                     raise HTTPException(400, "Email already in use")
             user.email = user_update.email
-
+    
+        # Обновление пароля
         if user_update.password is not None:
             user.hashed_password = hash_password(user_update.password)
-
+    
+        # Обновление личных данных
+        if user_update.first_name is not None:
+            user.first_name = user_update.first_name
+        
+        if user_update.last_name is not None:
+            user.last_name = user_update.last_name
+            
+        if user_update.middle_name is not None:
+            user.middle_name = user_update.middle_name
+    
+        # Обновление статуса активности
         if user_update.is_active is not None:
-            # user.is_active = user_update.is_active # Если есть поле
-            pass
-
+            user.is_active = user_update.is_active
+    
         await self.db.commit()
         await self.db.refresh(user)
         return user

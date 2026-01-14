@@ -16,7 +16,7 @@ print(f"DEBUG: TokenPair is {TokenPair}")
 async def register_new_user(
     db: db_dependency, new_user_info: UserRegister, user_service: UserServiceDependency
 ):
-    created_user = user_service.create_user(new_user_info)
+    created_user = await user_service.create_user(new_user_info)
     return created_user
 
 

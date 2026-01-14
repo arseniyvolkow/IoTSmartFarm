@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import Dict, Optional, Any
 
 class CurrentUser(BaseModel):
@@ -17,7 +17,8 @@ class CurrentUser(BaseModel):
     # Полный payload (на случай если нужно что-то специфичное)
     raw_payload: Dict[str, Any] = Field(default_factory=dict, exclude=True)
 
-    class Config:
-        # Позволяет создавать модель, передавая словарь с лишними полями (они отсеются)
-        extra = "ignore" 
-        populate_by_name = True
+    # FIX: Updated class-based Config to ConfigDict for Pydantic V2
+    model_config = ConfigDict(
+        extra="ignore",
+        populate_by_name=True
+    )
