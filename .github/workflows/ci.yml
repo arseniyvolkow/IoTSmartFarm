@@ -52,8 +52,8 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        # FIX: Added 'fastapi' and 'pydantic' to global installs so 'common' tests have access to them
-        pip install flake8 pytest pytest-asyncio httpx pyjwt fakeredis fastapi pydantic
+        # FIX: Added 'aiosqlite' and 'sqlalchemy' to ensure the test runner can initialize the SQLite engine
+        pip install flake8 pytest pytest-asyncio httpx pyjwt fakeredis fastapi pydantic aiosqlite sqlalchemy
         
         if [ -f ${{ matrix.service }}/requirements.txt ]; then
           pip install -r ${{ matrix.service }}/requirements.txt
@@ -75,7 +75,6 @@ jobs:
         REDIS_PORT: 6379
         SECRET_KEY: "test_secret_key"
         ALGORITHM: "HS256"
-        # FIX: Added missing expiration variables required by user_service/security.py
         ACCESS_TOKEN_EXPIRE_MINUTES: "30"
         REFRESH_TOKEN_EXPIRE_DAYS: "7"
         # Ensure python finds the 'common' package from the root
