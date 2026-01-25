@@ -9,11 +9,31 @@ from .redis_config import is_token_blacklisted
 from .schemas import CurrentUser
 
 
-SECRET_KEY = os.getenv("SECRET_KEY", "CHANGE_ME_IN_PROD_SECRET_KEY")
-ALGORITHM = os.getenv("ALGORITHM", "HS256")
+SECRET_KEY = os.getenv("SECRET_KEY")
+if not SECRET_KEY:
+    raise ValueError("SECRET_KEY environment variable not set")
+
+ALGORITHM = os.getenv("ALGORITHM")
+if not ALGORITHM:
+    raise ValueError("ALGORITHM environment variable not set")
+
 TOKEN_URL = os.getenv("AUTH_TOKEN_URL", "http://user-service:8000/auth/token")
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=TOKEN_URL)
+
+
+def decode_access_token(token: str) -> dict:
+    """
+    Stand-alone token decoding, useful for non-dependency contexts or
+    internal service use (e.g. user_service).
+    """
+    try:
+        return jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+    except InvalidTokenError as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Token invalid or expired: {e}",
+        )
 
 
 async def get_token_payload(token: Annotated[str, Depends(oauth2_scheme)]) -> dict:

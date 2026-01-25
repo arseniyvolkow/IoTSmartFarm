@@ -1,16 +1,33 @@
 from fastapi import HTTPException, status
-from typing import Optional
+from typing import Optional, Union
 import abc
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime
 from sqlalchemy.types import DateTime
+from common.schemas import CurrentUser
 
 
 class BaseService(abc.ABC):
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def check_access(self, entity, user_id):
+    async def check_access(self, entity, user: Union[CurrentUser, str]):
+        """
+        Checks if the user has access to the entity.
+        Prioritizes Global RBAC permissions (g_perms) if User object is provided.
+        """
+        user_id = user
+        
+        # 1. Check Global Permissions (RBAC Override)
+        if isinstance(user, CurrentUser):
+            user_id = user.id
+            g_perms = user.g_perms or {}
+            
+            # Super Admin / Write All access overrides everything
+            if g_perms.get("w_all") is True:
+                return
+
+        # 2. Check Ownership (Default)
         if entity.user_id != user_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN, detail="Access denied!"

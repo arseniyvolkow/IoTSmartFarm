@@ -1,25 +1,14 @@
 from typing import Dict, Union, Any
 import bcrypt
-from fastapi import HTTPException, status
 import jwt
 from datetime import timedelta, datetime, timezone
 import os
-from passlib.context import CryptContext
 import uuid
-from jwt.exceptions import PyJWTError
 
-SECRET_KEY = os.getenv("SECRET_KEY")
-if not SECRET_KEY:
-    raise ValueError("SECRET_KEY environment variable not set")
+# Import shared configuration and validation logic
+from common.security import SECRET_KEY, ALGORITHM, decode_access_token
 
-ALGORITHM = os.getenv("ALGORITHM")
-if not ALGORITHM:
-    raise ValueError("ALGORITHM environment variable not set")
-
-ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES"))
-if not ACCESS_TOKEN_EXPIRE_MINUTES:
-    ACCESS_TOKEN_EXPIRE_MINUTES = 20
-
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "20"))
 REFRESH_TOKEN_EXPIRE_DAYS = 7
 
 # bcrypt_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -71,18 +60,6 @@ def create_token(
 
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
-
-
-def decode_access_token(token: str) -> Dict[str, Any]:
-    try:
-        # This will automatically check 'exp' for you
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        return payload
-    except PyJWTError as e:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Token invalid or expired: {e}",
-        )
 
 
 # Алиасы для удобства

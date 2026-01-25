@@ -39,7 +39,7 @@ async def get(
     farm_id: str = Path(max_length=100),
 ):
     farm_entity = await farm_service.get(farm_id)
-    await farm_service.check_access(farm_entity, current_user.id)
+    await farm_service.check_access(farm_entity, current_user)
     return farm_entity
 
 
@@ -51,7 +51,7 @@ async def update_farm_info(
     farm_id: str = Path(max_length=100),
 ):
     farm_entity = await farm_service.get(farm_id)
-    await farm_service.check_access(farm_entity, current_user.id)
+    await farm_service.check_access(farm_entity, current_user)
     await farm_service.update(farm_entity, **farm.model_dump())
     return {"details": f"Farm {farm_entity.farm_id} info was updated!"}
 
@@ -65,7 +65,7 @@ async def assign_crop_to_farm(
     crop_id: str = Query(max_length=100),
 ):
     farm_entity = await farm_service.get(farm_id)
-    await farm_service.check_access(farm_entity, current_user.id)
+    await farm_service.check_access(farm_entity, current_user)
     crop_entity = await crop_service.get(crop_id)
     await crop_service.assign_crop_to_farm(farm_entity, crop_entity)
     return {"details": "Crop assigned to farm!"}
@@ -78,6 +78,6 @@ async def delete_farm(
     farm_id: str = Path(max_length=100),
 ):
     farm_entity = await farm_service.get(farm_id)
-    await farm_service.check_access(farm_entity, current_user.id)
+    await farm_service.check_access(farm_entity, current_user)
     await farm_service.delete(farm_entity)
     return {"details": f"Farm {farm_entity.farm_id} was deleted"}

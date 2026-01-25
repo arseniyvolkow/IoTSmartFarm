@@ -1,7 +1,6 @@
 import logging
 from enum import Enum
 from typing import Dict, Any, Callable, Awaitable
-
 import httpx
 
 logger = logging.getLogger(__name__)

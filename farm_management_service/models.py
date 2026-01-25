@@ -1,15 +1,37 @@
 from farm_management_service.database import Base
 from sqlalchemy.orm import relationship, Mapped, mapped_column
-from sqlalchemy import Enum, ForeignKey, DateTime, Text, JSON
+from sqlalchemy import Enum, ForeignKey, DateTime, Text, JSON, UniqueConstraint
 from typing import List, Optional
 import uuid
 from sqlalchemy.sql import func
 from datetime import datetime, date
-from farm_management_service.enums import ActuatorState, DeviceStatus
+from farm_management_service.enums import ActuatorState, DeviceStatus, AccessLevel
 
 
 def generate_uuid():
     return str(uuid.uuid4())
+
+
+class FarmAccess(Base):
+    __tablename__ = "farm_access"
+    
+    access_id: Mapped[str] = mapped_column(primary_key=True, default=generate_uuid)
+    farm_id: Mapped[str] = mapped_column(ForeignKey("farms.farm_id"), index=True)
+    user_id: Mapped[str] = mapped_column(index=True) # User from user_service
+    access_level: Mapped[AccessLevel] = mapped_column(
+        Enum(AccessLevel, name="access_level", create_type=True),
+        default=AccessLevel.READ
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    
+    # Relationship
+    farm: Mapped["Farms"] = relationship(back_populates="access_entries")
+
+    __table_args__ = (
+        UniqueConstraint('farm_id', 'user_id', name='unique_farm_user_access'),
+    )
 
 
 class Crops(Base):

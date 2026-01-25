@@ -37,7 +37,7 @@ async def get_info_about_crop(
 ):
     crop_service = CropService(db)
     crop_entity = await crop_service.get(crop_id)
-    await crop_service.check_access(crop_entity, current_user.id)
+    await crop_service.check_access(crop_entity, current_user)
     return crop_entity
 
 
@@ -50,8 +50,8 @@ async def change_crop_info(
 ):
     crop_service = CropService(db)
     crop_entity = await crop_service.get(crop_id)
-    await crop_service.check_access(crop_entity, current_user.id)
-    new_crop_entity = await crop_service.update(crop_entity, crop_data)
+    await crop_service.check_access(crop_entity, current_user)
+    new_crop_entity = await crop_service.update(crop_entity, **crop_data.model_dump())
     return new_crop_entity
 
 

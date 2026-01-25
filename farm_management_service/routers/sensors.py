@@ -18,7 +18,7 @@ async def get(
 ) -> SensorRead:
     sensor_service = SensorService(db)
     sensor_entity = await sensor_service.get(sensor_id)
-    await sensor_service.check_access(sensor_entity, current_user.id)
+    await sensor_service.check_access(sensor_entity, current_user)
     return sensor_entity
 
 
@@ -46,7 +46,7 @@ async def update(
 ):
     sensor_service = SensorService(db)
     sensor_entity = await sensor_service.get(sensor_id)
-    await sensor_service.check_access(sensor_entity, current_user.id)
+    await sensor_service.check_access(sensor_entity, current_user)
     await sensor_service.update(sensor_entity, **sensor.model_dump())
     return {"details": f"Farm {sensor_entity.sensor_id} info was updated!"}
 

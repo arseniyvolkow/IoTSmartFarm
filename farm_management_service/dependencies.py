@@ -9,12 +9,15 @@ from farm_management_service.services.crops_service import CropService
 from farm_management_service.services.device_service import DeviceService
 from farm_management_service.services.farm_service import FarmService
 from farm_management_service.services.sensor_service import SensorService
+from farm_management_service.services.access_service import AccessService
 
 db_dependency = Annotated[AsyncSession, Depends(get_db)]
 
 async def get_actuator_service(db: db_dependency) -> ActuatorService:
     return ActuatorService(db)
 
+async def get_access_service(db: db_dependency) -> AccessService:
+    return AccessService(db)
 
 async def get_crop_service(db: db_dependency) -> CropService:
     return CropService(db)

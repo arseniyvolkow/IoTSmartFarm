@@ -19,7 +19,7 @@ async def get(
 ) -> ActuatorRead:
     actuator_service = ActuatorService(db)
     actuator_entity = await actuator_service.get(actuator_id)
-    await actuator_service.check_access(actuator_entity, current_user.id)
+    await actuator_service.check_access(actuator_entity, current_user)
     return actuator_entity
 
 
@@ -51,7 +51,7 @@ async def update(
 ) -> ActuatorRead:
     actuator_service = ActuatorService(db)
     actuator_entity = await actuator_service.get(actuator_id)
-    await actuator_service.check_access(actuator_entity, current_user.id)
+    await actuator_service.check_access(actuator_entity, current_user)
     updated_entity = await actuator_service.update(
         actuator_entity, **actuator.model_dump()
     )

@@ -1,12 +1,15 @@
-from farm_management_service.models import Actuators, Devices  # Import Devices for the join
+from farm_management_service.models import Actuators, Devices, FarmAccess
 from farm_management_service.base_service import BaseService
 from sqlalchemy.orm import joinedload
-from sqlalchemy import select, update
-from typing import List, Optional
+from sqlalchemy import select, update, or_
+from typing import List, Optional, Union
 from farm_management_service.schemas import ActuatorRead, ActuatorBase
 from fastapi import HTTPException, status, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from farm_management_service.database import get_db
+from farm_management_service.services.access_service import AccessService
+from farm_management_service.enums import AccessLevel
+from common.schemas import CurrentUser
 
 
 class ActuatorService(BaseService):
@@ -15,6 +18,38 @@ class ActuatorService(BaseService):
         db: AsyncSession = Depends(get_db),
     ):
         super().__init__(db)
+        self.access_service = AccessService(db)
+
+    async def check_access(self, entity, user: Union[CurrentUser, str], required_level: AccessLevel = AccessLevel.READ):
+        user_id = user
+        
+        # 1. Check Global Permissions (RBAC Override)
+        if isinstance(user, CurrentUser):
+            user_id = user.id
+            g_perms = user.g_perms or {}
+            if g_perms.get("w_all") is True:
+                return # Admin Write
+            if g_perms.get("r_all") is True and required_level == AccessLevel.READ:
+                return # Admin Read
+
+        # 2. Direct Ownership (Actuator)
+        if entity.user_id == user_id:
+            return
+            
+        # 3. Device Ownership
+        if entity.device and entity.device.user_id == user_id:
+            return
+
+        # 4. Farm Access
+        device = entity.device
+        if device and device.farm_id:
+            has_perm = await self.access_service.has_access(device.farm_id, user_id, required_level)
+            if has_perm:
+                return
+
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Access denied!"
+        )
 
     def add_actuators_to_session(
         self, device_id: str, actuators_list: List[ActuatorBase]
@@ -61,7 +96,15 @@ class ActuatorService(BaseService):
         query = (
             select(Actuators)
             .join(Devices, Actuators.device_id == Devices.device_id)
-            .filter(Devices.user_id == user_id)
+            .outerjoin(FarmAccess, Devices.farm_id == FarmAccess.farm_id)
+            .filter(
+                or_(
+                    Devices.user_id == user_id,
+                    Actuators.user_id == user_id,
+                    FarmAccess.user_id == user_id
+                )
+            )
+            .distinct()
         )
         items, next_cursor = await self.cursor_paginate(
             self.db, query, sort_column, cursor, limit

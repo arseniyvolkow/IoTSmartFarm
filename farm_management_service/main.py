@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from farm_management_service.models import Base
 from farm_management_service.database import engine
 from contextlib import asynccontextmanager
-from farm_management_service.routers import devices, farms, crops, sensors, actuators
+from farm_management_service.routers import devices, farms, crops, sensors, actuators, access_control
 
 
 @asynccontextmanager
@@ -30,6 +30,7 @@ app.include_router(farms.router)
 app.include_router(crops.router)
 app.include_router(sensors.router)
 app.include_router(actuators.router)
+app.include_router(access_control.router)
 
 @app.get("/health")
 async def health_check():

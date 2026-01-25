@@ -1,8 +1,8 @@
 from fastapi import FastAPI
-from .models import Base
-from .database import engine
+from rule_service.models import Base
+from rule_service.database import engine
 from contextlib import asynccontextmanager
-from .routers import rules
+from rule_service.routers import rules
 
 
 @asynccontextmanager

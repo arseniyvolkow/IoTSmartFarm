@@ -1,16 +1,19 @@
 from fastapi import HTTPException, Depends
 from sqlalchemy.exc import IntegrityError
 from starlette import status
-from farm_management_service.models import Devices
+from farm_management_service.models import Devices, FarmAccess
 from farm_management_service.base_service import BaseService
-from sqlalchemy import select
+from sqlalchemy import select, or_
 from farm_management_service.schemas import DeviceCreate, DeviceRead, DevicePagination
 from sqlalchemy.orm import joinedload, selectinload
-from typing import Optional
+from typing import Optional, Union
 from sqlalchemy.ext.asyncio import AsyncSession
 from farm_management_service.database import get_db
 from farm_management_service.services.sensor_service import SensorService
 from farm_management_service.services.actuators_service import ActuatorService
+from farm_management_service.services.access_service import AccessService
+from farm_management_service.enums import AccessLevel
+from common.schemas import CurrentUser
 
 
 class DeviceService(BaseService):
@@ -22,6 +25,34 @@ class DeviceService(BaseService):
         # Instantiate other services, passing the SAME database session
         self.sensor_service = SensorService(db)
         self.actuator_service = ActuatorService(db)
+        self.access_service = AccessService(db)
+
+    async def check_access(self, entity, user: Union[CurrentUser, str], required_level: AccessLevel = AccessLevel.READ):
+        user_id = user
+        
+        # 1. Check Global Permissions (RBAC Override)
+        if isinstance(user, CurrentUser):
+            user_id = user.id
+            g_perms = user.g_perms or {}
+            if g_perms.get("w_all") is True:
+                return # Admin Write
+            if g_perms.get("r_all") is True and required_level == AccessLevel.READ:
+                return # Admin Read
+
+        # 2. Direct Ownership
+        if entity.user_id == user_id:
+            return
+
+        # 3. Farm Access
+        farm_id = getattr(entity, "farm_id", None)
+        if farm_id:
+            has_perm = await self.access_service.has_access(farm_id, user_id, required_level)
+            if has_perm:
+                return
+
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Access denied!"
+        )
 
     async def get(self, device_id: str) -> Devices:
         query = select(Devices).filter(Devices.device_id == device_id)
@@ -136,17 +167,36 @@ class DeviceService(BaseService):
         cursor: Optional[str] = None,
         limit: Optional[int] = 10,
     ) -> DevicePagination:
-        query = select(Devices).filter(Devices.user_id == user_id)
-
-        if farm_id:
-            query = query.filter(Devices.farm_id == farm_id)
-            # TODO: The FastAPI router must ensure the user has access to this farm_id
-            # before calling this service method.
-        query = query.options(
+        # Base query
+        query = select(Devices).options(
             selectinload(Devices.sensors), selectinload(Devices.actuators)
         )
-        # 3. Perform cursor pagination
+        
+        # If farm_id provided, filter by it (AND access check implied by router or future check)
+        if farm_id:
+            query = query.filter(Devices.farm_id == farm_id)
+            # We assume user has access to farm if they request it specificially,
+            # or we rely on the caller to have checked.
+            # But we must ensure they can see THIS device.
+            # Join FarmAccess to ensure user has access to this farm OR owns the device
+            query = query.outerjoin(FarmAccess, Devices.farm_id == FarmAccess.farm_id)
+            query = query.filter(
+                or_(
+                    Devices.user_id == user_id,
+                    FarmAccess.user_id == user_id
+                )
+            )
+        else:
+            # Show all devices owned by user OR in farms where user has access
+            query = query.outerjoin(FarmAccess, Devices.farm_id == FarmAccess.farm_id)
+            query = query.filter(
+                or_(
+                    Devices.user_id == user_id,
+                    FarmAccess.user_id == user_id
+                )
+            )
+
         items, next_cursor = await self.cursor_paginate(
-            self.db, query, sort_column, cursor, limit
+            self.db, query.distinct(), sort_column, cursor, limit
         )
         return items, next_cursor

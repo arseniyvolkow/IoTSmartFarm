@@ -5,20 +5,7 @@ from sqlalchemy import select
 from user_service.schemas import TokenPair, UserLogin
 from user_service.security import verify_password, create_access_token, create_refresh_token, decode_access_token
 from user_service.models import User
-from common.redis_config import is_token_blacklisted
-
-
-# Импортируем функцию для работы с Redis из common-библиотеки
-# Если вы еще не настроили common/redis_client.py, этот импорт упадет.
-# В таком случае закомментируйте его и логику логаута временно.
-try:
-    from common.redis_config import add_token_to_blacklist
-except ImportError:
-    # Заглушка, если библиотека common не найдена
-    print("Warning: common.redis_client not found. Logout will not work.")
-
-    async def add_token_to_blacklist(jti: str, expire_seconds: int):
-        pass
+from common.redis_config import is_token_blacklisted, add_token_to_blacklist
 
 
 class AuthService:

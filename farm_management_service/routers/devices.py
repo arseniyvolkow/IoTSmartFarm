@@ -76,9 +76,9 @@ async def list_devices(
 ) -> DevicePagination:
     if farm_id:
         farm_entity = await farm_service.get(farm_id)
-        await farm_service.check_access(farm_entity, current_user.id)
+        await farm_service.check_access(farm_entity, current_user)
     items, next_cursor = await device_service.get_user_devices(
-        current_user.id, farm_entity, sort_column, cursor, limit
+        current_user.id, sort_column, farm_id, cursor, limit
     )
     return {"items": items, "next_cursor": next_cursor}
 
@@ -94,9 +94,9 @@ async def assign_device(
     farm_id: str = Query(max_length=100),
 ) -> DeviceRead:
     farm_entity = await farm_service.get(farm_id)
-    await farm_service.check_access(farm_entity, current_user.id)
+    await farm_service.check_access(farm_entity, current_user)
     device_entity = await device_service.get(device_id)
-    await device_service.check_access(device_entity, current_user.id)
+    await device_service.check_access(device_entity, current_user)
     updated_device_entity = await device_service.update(
         device_entity, farm_id=farm_entity.farm_id
     )
@@ -139,7 +139,7 @@ async def update_device_info(
     device_id: str = Path(max_length=250),
 ):
     device_entity = await device_service.get(device_id)
-    await device_service.check_access(device_entity, current_user.id)
+    await device_service.check_access(device_entity, current_user)
     await device_service.update(device_entity, status=new_status)
     return new_status
 
@@ -151,7 +151,7 @@ async def delete_device(
     device_id: str = Path(max_length=250),
 ):
     device_entity = await device_service.get(device_id)
-    await device_service.check_access(device_entity, current_user.id)
+    await device_service.check_access(device_entity, current_user)
     await device_service.delete(device_entity)
 
 
@@ -163,7 +163,7 @@ async def device_firmware_update(
     device_id: str = Path(max_length=100),
 ):
     device_entity = await device_service.get(device_id)
-    await device_service.check_access(device_entity, current_user.id)
+    await device_service.check_access(device_entity, current_user)
     try:
         firmware = await file.read()
         async with httpx.AsyncClient() as client:

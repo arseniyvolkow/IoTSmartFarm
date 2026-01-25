@@ -1,10 +1,24 @@
 from typing import Any, Optional
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from datetime import date, datetime
 from typing import Optional, List, TypeVar, Generic
-from farm_management_service.enums import ActuatorState, DeviceStatus
+from farm_management_service.enums import ActuatorState, DeviceStatus, AccessLevel
 
 T = TypeVar("T")
+
+# Farm Access Models
+class FarmAccessBase(BaseModel):
+    user_id: str
+    access_level: AccessLevel = AccessLevel.READ
+
+class FarmAccessCreate(FarmAccessBase):
+    pass
+
+class FarmAccessRead(FarmAccessBase):
+    access_id: str
+    farm_id: str
+    created_at: datetime
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SensorBase(BaseModel):
