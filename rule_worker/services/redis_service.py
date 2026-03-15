@@ -80,3 +80,16 @@ class RedisService:
         except Exception as e:
             logger.error(f"Error parsing JSON for {sensor_id}: {e}")
             return None
+
+    async def subscribe_to_channel(self, channel_name: str):
+        """
+        Subscribes to a Redis channel and returns the PubSub object.
+        """
+        if not self.client:
+            logger.error("Redis client not initialized")
+            return None
+        
+        pubsub = self.client.pubsub()
+        await pubsub.subscribe(channel_name)
+        logger.info(f"📡 Subscribed to Redis channel: {channel_name}")
+        return pubsub

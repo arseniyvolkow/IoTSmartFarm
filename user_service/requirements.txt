@@ -17,7 +17,6 @@ pycparser==2.23
 pydantic==2.12.4
 pydantic_core==2.41.5
 PyJWT==2.10.1
-python-jose==3.5.0
 redis==7.1.0
 rsa==4.9.1
 six==1.17.0

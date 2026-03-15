@@ -1,30 +1,27 @@
 import logging
-from enum import Enum
-from typing import Dict, Any, Callable, Awaitable
 import httpx
+from typing import Dict, Any, Callable, Awaitable, Optional
+from rule_worker.enums import RuleActionType
+from rule_worker.services.token_service import TokenService
 
 logger = logging.getLogger(__name__)
-
-class ActionType(str, Enum):
-    CONTROL_DEVICE = "CONTROL_DEVICE"
-    SEND_NOTIFICATION = "SEND_NOTIFICATION"
-    LOG_EVENT = "LOG_EVENT"
 
 class ActionExecutor:
     """
     Dispatcher service to execute rule actions.
+    Integrates with other microservices (e.g., Sensor Data Service for actuation).
     """
 
     def __init__(self, http_client: httpx.AsyncClient, sensor_service_url: str):
         self.http_client = http_client
         self.sensor_service_url = sensor_service_url.rstrip("/")
+        self.token_service = TokenService()
         
-        # Маппинг типов действий на методы-обработчики
-        # Это заменяет длинную цепочку if/elif
+        # Mapping RuleActionType (from rule_worker.enums) to handler methods
         self._handlers: Dict[str, Callable[[Dict[str, Any]], Awaitable[bool]]] = {
-            ActionType.CONTROL_DEVICE.value: self._execute_device_control,
-            ActionType.SEND_NOTIFICATION.value: self._execute_email_notification,
-            ActionType.LOG_EVENT.value: self._execute_log_message,
+            RuleActionType.CONTROL_DEVICE.value: self._execute_device_control,
+            RuleActionType.SEND_NOTIFICATION.value: self._execute_notification_placeholder,
+            RuleActionType.LOG_EVENT.value: self._execute_log_message,
         }
 
     async def execute(self, action_dict: Dict[str, Any], context: Dict[str, Any] = None) -> bool:
@@ -44,6 +41,7 @@ class ActionExecutor:
         logger.info(f"▶️ Executing action {action_id} [{action_type}]")
         
         try:
+            # Pass context if needed by handlers in the future
             result = await handler(action_payload)
             if result:
                 logger.info(f"✅ Action {action_id} completed successfully.")
@@ -51,15 +49,22 @@ class ActionExecutor:
                 logger.warning(f"⚠️ Action {action_id} failed or returned False.")
             return result
         except Exception as e:
-            # exc_info=True покажет полный стек ошибки в логах
             logger.error(f"❌ Critical error executing action {action_id}: {e}", exc_info=True)
             return False
 
-    async def _send_post_request(self, url: str, payload: Dict[str, Any], context_tag: str) -> bool:
-        """Helper to send HTTP POST requests with standard error handling."""
+    async def _send_authorized_post_request(self, url: str, payload: Dict[str, Any], context_tag: str) -> bool:
+        """Helper to send HTTP POST requests with JWT authentication and standard error handling."""
+        
+        token = self.token_service.generate_service_token()
+        headers = {}
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+        else:
+            logger.warning(f"No authentication token available for '{context_tag}'. Request may fail.")
+
         try:
             logger.debug(f"Sending POST to {url} | Payload: {payload}")
-            response = await self.http_client.post(url, json=payload, timeout=10.0)
+            response = await self.http_client.post(url, json=payload, headers=headers, timeout=10.0)
             response.raise_for_status()
             return True
         except httpx.HTTPStatusError as e:
@@ -72,33 +77,27 @@ class ActionExecutor:
 
     async def _execute_device_control(self, payload: Dict[str, Any]) -> bool:
         """
-        Calls Sensor Service to control actuators.
-        Expected payload: {"devices_to_control": [...]}
+        Calls Sensor Data Service to control actuators.
+        Expected payload in DB: {"actuators_to_control": [{"actuator_id": "...", "command": "..."}]}
+        Matches sensor_data_service.schemas.ActuatorPayload
         """
         url = f"{self.sensor_service_url}/actuator-mode-update"
         
-        devices = payload.get("devices_to_control", [])
-        if not devices:
-            logger.warning("Action payload missing 'devices_to_control'. Skipping.")
+        # The database payload should ideally match the target API structure
+        actuators = payload.get("actuators_to_control")
+        if not actuators:
+            logger.warning("Action payload missing 'actuators_to_control'. Skipping.")
             return False
 
-        control_payload = {"actuators_to_control": devices}
-        return await self._send_post_request(url, control_payload, "Device Control")
+        # Prepare the payload according to sensor_data_service schema
+        control_payload = {"actuators_to_control": actuators}
+        return await self._send_authorized_post_request(url, control_payload, "Device Control")
 
-    async def _execute_email_notification(self, payload: Dict[str, Any]) -> bool:
+    async def _execute_notification_placeholder(self, payload: Dict[str, Any]) -> bool:
         """
-        Placeholder for sending emails.
+        Placeholder for sending notifications (e.g., Email, SMS, Push).
         """
-        to_email = payload.get("to")
-        subject = payload.get("subject", "SmartFarm Alert")
-        body = payload.get("body", "")
-        
-        if not to_email:
-            logger.warning("Email action missing 'to' address.")
-            return False
-
-        logger.info(f"📧 [MOCK] Sending Email to {to_email} | Subject: {subject}")
-        # Здесь можно добавить реальную интеграцию с SMTP или сервисом рассылок
+        logger.info(f"🔔 [MOCK] Notification triggered with payload: {payload}")
         return True
 
     async def _execute_log_message(self, payload: Dict[str, Any]) -> bool:
@@ -108,7 +107,6 @@ class ActionExecutor:
         message = payload.get("message", "Rule triggered")
         level_str = payload.get("level", "INFO").upper()
         
-        # Динамически получаем метод логгера (info, warning, error)
         log_method = getattr(logger, level_str.lower(), logger.info)
         log_method(f"📝 RULE LOG: {message}")
         return True

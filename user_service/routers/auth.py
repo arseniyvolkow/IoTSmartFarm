@@ -43,5 +43,6 @@ async def refresh_tokens(
     request: RefreshRequest,
     auth_service: AuthServiceDependency,
 ):
+    return await auth_service.refresh_access_token(request.refresh_token) 
 
-    return await auth_service.refresh_access_token(request.refresh_token)
+

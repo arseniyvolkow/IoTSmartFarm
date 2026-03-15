@@ -1,4 +1,5 @@
 import logging
+import json
 from typing import Optional, List, Dict, Any
 import redis.asyncio as redis_client
 
@@ -83,6 +84,7 @@ class RedisService:
         """
         Efficiently update Redis cache with a batch of sensor data using a pipeline.
         sensor_data_list expected format: [{'sensor_id': '...', 'value': ...}, ...]
+        Also publishes an event to 'sensor_updates' channel for real-time rule evaluation.
         """
         if not self.client:
             logger.warning("Redis not connected, skipping batch update")
@@ -92,14 +94,25 @@ class RedisService:
             # Используем Pipeline для отправки всех команд за один раз
             async with self.client.pipeline() as pipe:
                 for sensor_data in sensor_data_list:
-                    sensor_key = f"sensor:{sensor_data['sensor_id']}"
-                    # Добавляем команду в пайплайн (не вызываем await здесь)
-                    pipe.set(sensor_key, str(sensor_data["value"]))
+                    sensor_id = sensor_data['sensor_id']
+                    sensor_key = f"sensor:{sensor_id}"
+                    value = str(sensor_data["value"])
+                    
+                    # Обновляем значение
+                    pipe.set(sensor_key, value)
+                    
+                    # Публикуем событие об обновлении
+                    # Payload: {"sensor_id": "...", "value": ...}
+                    event_payload = json.dumps({
+                        "sensor_id": sensor_id,
+                        "value": sensor_data["value"]
+                    })
+                    pipe.publish("sensor_updates", event_payload)
                 
                 # Выполняем все команды скопом
                 await pipe.execute()
                 
-            logger.info(f"Successfully cached {len(sensor_data_list)} sensor readings via pipeline.")
+            logger.info(f"Successfully cached and published {len(sensor_data_list)} sensor readings via pipeline.")
             
         except Exception as e:
             logger.error(f"Error updating Redis cache from batch: {e}")

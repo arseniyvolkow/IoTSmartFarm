@@ -1,3 +1,4 @@
+import rule_engine
 from rule_service.base_service import BaseService
 from rule_service.models import Rules, RuleActions
 from sqlalchemy import select
@@ -11,7 +12,16 @@ from rule_service.enums import RuleTriggerType
 class RulesService(BaseService):
 
     async def create(self, rule: RuleCreate, user_id):
-        # 1. Create the Rules entity
+        # 1. Validate rule_expression
+        try:
+            rule_engine.Rule(rule.rule_expression)
+        except rule_engine.errors.RuleSyntaxError as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid rule expression: {str(e)}"
+            )
+
+        # 2. Create the Rules entity
         rule_entity = Rules(
             farm_id=rule.farm_id,
             user_id=user_id,
@@ -25,7 +35,7 @@ class RulesService(BaseService):
             is_active=rule.is_active,
         )
 
-        # 2. Prepare and add RuleActions entities
+        # 3. Prepare and add RuleActions entities
         rule_actions = []
         for action_data in rule.actions:
             action_entity = RuleActions(
@@ -36,18 +46,18 @@ class RulesService(BaseService):
             )
             rule_actions.append(action_entity)
 
-        # 3. Assign the list of RuleActions entities to the 'actions' relationship attribute
+        # 4. Assign the list of RuleActions entities to the 'actions' relationship attribute
         # SQLAlchemy will correctly link these actions to the rule_entity upon commit
         rule_entity.actions = rule_actions
 
-        # 4. Add the parent entity (Rules) to the session
+        # 5. Add the parent entity (Rules) to the session
         self.db.add(rule_entity)
 
-        # 5. Commit the transaction
+        # 6. Commit the transaction
         # Both the rule and all associated actions are saved to the database
         await self.db.commit()
 
-        # 6. Refresh the entity to ensure all generated fields (like action_id) are loaded
+        # 7. Refresh the entity to ensure all generated fields (like action_id) are loaded
         await self.db.refresh(rule_entity)
 
         return rule_entity
@@ -56,13 +66,13 @@ class RulesService(BaseService):
         query = (
             select(Rules)
             .filter(Rules.rule_id == rule_id)
-            .options(joinedload(Rules.actions), joinedload(Rules.triggered_alerts))
+            .options(joinedload(Rules.actions))
         )
         result = await self.db.execute(query)
         rule_entity = result.scalar_one_or_none()
         if not rule_entity:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Farm not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="Rule not found"
             )
         return rule_entity
 

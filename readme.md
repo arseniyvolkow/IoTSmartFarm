@@ -81,22 +81,27 @@ This project was a great opportunity to solve several interesting engineering ch
 
 You can get a local instance up and running easily with Docker.
 
-1.  **Clone the repository:**
+1. **Clone the repository:**
+
     ```sh
     git clone https://github.com/arseniyvolkow/IoTSmartFarm.git
     cd smartfarm
     ```
-2.  **Configure your environment:**
+
+2. **Configure your environment:**
     Create a `.env` file in the root directory (you can copy `example.env` as a template) and fill in your credentials for PostgreSQL, InfluxDB, etc.
-3.  **Launch the application:**
+3. **Launch the application:**
+
     ```sh
     docker-compose up --build
     ```
+
     Once the containers are running, the API documentation for each service will be available at:
     * User Service Docs: `http://localhost/api/user-service/docs`
     * Farm Management Service Docs: `http://localhost/api/farm-management-service/docs`
     * Rule Service Docs: `http://localhost/api/rule-service/docs`
-    * Sensor Data Retrieval Service Docs: `http://localhost//api/sensor-data/docs` 
+    * Sensor Data Retrieval Service Docs: `http://localhost//api/sensor-data/docs`
+
 ---
 
 ## 📚 API Endpoints
@@ -105,97 +110,108 @@ You can get a local instance up and running easily with Docker.
 <summary>Click to expand the complete API endpoint list</summary>
 
 ### User Service
-- **Purpose**: Provides authentication (JWT-based) and user management functions.
-- **Key Features**: User registration, role assignment, token generation/validation, and administrative user management.
-- **Endpoints**:
+
+* **Purpose**: Provides authentication (JWT-based) and user management functions.
+
+* **Key Features**: User registration, role assignment, token generation/validation, and administrative user management.
+* **Endpoints**:
   * **Auth Router** (Public/Session):  
-    - `POST /auth/register`- Register a new account.  
-    - `POST /auth/token`- Login via Email/Password. Returns **Access \+ Refresh** tokens.  
-    - `POST /auth/refresh` - Refresh an expired Access token using a valid Refresh token.  
-    - `POST /auth/logout` - Secure logout (revokes token via Redis Blacklist).  
+    * `POST /auth/register`- Register a new account.  
+    * `POST /auth/token`- Login via Email/Password. Returns **Access \+ Refresh** tokens.  
+    * `POST /auth/refresh` - Refresh an expired Access token using a valid Refresh token.  
+    * `POST /auth/logout` - Secure logout (revokes token via Redis Blacklist).  
   * **User Profile** (Self-Service \- /users/me):  
-    - `GET /users/me` - Get current user's profile details.  
-    - `PUT /users/me`- Update self profile (Email, Password, Avatar).  
-    - `DELETE /users/me` - Delete self account (Self-service).  
+    * `GET /users/me` - Get current user's profile details.  
+    * `PUT /users/me`- Update self profile (Email, Password, Avatar).  
+    * `DELETE /users/me` - Delete self account (Self-service).  
   * **User Management** (Admin Only \- /users):  
-    - `GET /users` - List all users (Requires users:read).  
-    - `GET /users/{id}` - Get details of a specific user.  
-    - `PUT /users/{id}` - Admin update (Email, Ban status, Active status) (Requires users:write).  
-    - `POST /users/{id}/role` - Assign a role to a user (Requires roles:write).  
-    - `DELETE /users/{id}` - Force delete/ban a user (Requires users:delete).  
+    * `GET /users` - List all users (Requires users:read).  
+    * `GET /users/{id}` - Get details of a specific user.  
+    * `PUT /users/{id}` - Admin update (Email, Ban status, Active status) (Requires users:write).  
+    * `POST /users/{id}/role` - Assign a role to a user (Requires roles:write).  
+    * `DELETE /users/{id}` - Force delete/ban a user (Requires users:delete).  
   * **RBAC Management** (Super Admin Only \- /admin/roles):  
-    - `GET /admin/roles` - List all available roles.  
-    - `POST /admin/roles` - Create a new Role (e.g., "Agronomist").  
-    - `GET /admin/roles/{name}` - View role details and permissions.  
-    - `POST /admin/roles/{name}/permissions` - Configure resource permissions (e.g., give read access to "farms").  
-    - `DELETE /admin/roles/{name}` - Delete a role.
+    * `GET /admin/roles` - List all available roles.  
+    * `POST /admin/roles` - Create a new Role (e.g., "Agronomist").  
+    * `GET /admin/roles/{name}` - View role details and permissions.  
+    * `POST /admin/roles/{name}/permissions` - Configure resource permissions (e.g., give read access to "farms").  
+    * `DELETE /admin/roles/{name}` - Delete a role.
 
 ### Farm Management Service
-- **Purpose**: Handles operations related to farm devices, crop management, and overall farm structure.
-- **Key Features**: Full CRUD for devices, farms, and crops. Firmware update handling. Association of devices to farms.
-- **Device Endpoints**:
-    - `POST /device` - Registers a new device, used only by device itself.
-    - `GET /list-of-new-devices` - Get all new devices which were not yet assigned to user.
-    - `GET /unsigned-devices` - Lists devices not yet assigned to any farm.
-    - `GET /all-devices` - Lists all devices registered under the current user.
-    - `GET /all-devices/{farm_id}` - Lists devices specific to a given farm.
-    - `PATCH /assign-device-to-farm` - Associates a device with a specific farm.
-    - `PATCH /device/{device_id}` - Updates the status or configuration of a device.
-    - `DELETE /device/{device_id}` - Removes a device from the system.
-    - `POST /upload_firmware/{device_id}` - Uploads and updates the firmware of a device.
-- **Actuators Endpoints**:
-    - `GET /actuator/{actuator_id}` - Get actuators details.
-    - `GET /all` - Get all users actuators.
-    - `PUT /actuator/{actuator_id}` - Update actuator info.
-    - `DELETE /actuator/{actuator_id}` - Delete actuator.
-- **Sensor Endpoints**:
-    - `GET /sensor/{sensor_id}` - Retrives details about a specific sensor.
-    - `GET /all` - Fetches a list of all sensor which user have access to.
-    - `PUT /sensor/{sensor_id}` - Update sensors information.
-    - `DELETE /sensor/{sensor_id}` - Removes sensor
-- **Farm Endpoints**:
-    - `POST /farm` - Creates a new farm record.
-    - `GET /all` - Retrives all users farms.
-    - `GET /farm/{farm_id}` - Retrieves detailed information about a specific farm.
-    - `PUT /farms/farm/{farm_id}` - Updates existing farm information.
-    - `PATCH /farms/farm/{farm_id}` - Assigns a crop to the farm.
-    - `DELETE /farms/farm/{farm_id}` - Deletes a farm record.
-- **Crop Endpoints**:
-    - `POST /crop` - Adds a new crop management entry.
-    - `GET /crop/{crop_id}` - Retrieves details about a specific crop management entry.
-    - `PUT /crop/{crop_id}` - Updates an existing crop management entry.
-    - `GET /all` - Fetches a list of all available crop managmaent entries.
-    - `POST /crop-type` - Creates a new crop type.
-    - `GET /all-crop-types` - Fetches a list of all available crop types.
+
+* **Purpose**: Handles operations related to farm devices, crop management, and overall farm structure.
+
+* **Key Features**: Full CRUD for devices, farms, and crops. Firmware update handling. Association of devices to farms.
+* **Device Endpoints**:
+  * `POST /device` - Registers a new device, used only by device itself.
+  * `GET /list-of-new-devices` - Get all new devices which were not yet assigned to user.
+  * `GET /unsigned-devices` - Lists devices not yet assigned to any farm.
+  * `GET /all-devices` - Lists all devices registered under the current user.
+  * `GET /all-devices/{farm_id}` - Lists devices specific to a given farm.
+  * `PATCH /assign-device-to-farm` - Associates a device with a specific farm.
+  * `PATCH /device/{device_id}` - Updates the status or configuration of a device.
+  * `DELETE /device/{device_id}` - Removes a device from the system.
+  * `POST /upload_firmware/{device_id}` - Uploads and updates the firmware of a device.
+* **Actuators Endpoints**:
+  * `GET /actuator/{actuator_id}` - Get actuators details.
+  * `GET /all` - Get all users actuators.
+  * `PUT /actuator/{actuator_id}` - Update actuator info.
+  * `DELETE /actuator/{actuator_id}` - Delete actuator.
+* **Sensor Endpoints**:
+  * `GET /sensor/{sensor_id}` - Retrives details about a specific sensor.
+  * `GET /all` - Fetches a list of all sensor which user have access to.
+  * `PUT /sensor/{sensor_id}` - Update sensors information.
+  * `DELETE /sensor/{sensor_id}` - Removes sensor
+* **Farm Endpoints**:
+  * `POST /farm` - Creates a new farm record.
+  * `GET /all` - Retrives all users farms.
+  * `GET /farm/{farm_id}` - Retrieves detailed information about a specific farm.
+  * `PUT /farms/farm/{farm_id}` - Updates existing farm information.
+  * `PATCH /farms/farm/{farm_id}` - Assigns a crop to the farm.
+  * `DELETE /farms/farm/{farm_id}` - Deletes a farm record.
+* **Access Control Endpoints**:
+  * `POST /farms/{farm_id}/access` - Grant access to a user.
+  * `DELETE /farms/{farm_id}/access/{user_id}` - Revoke access from a user.
+  * `GET /farms/{farm_id}/access` - List all users with access to the farm.
+* **Crop Endpoints**:
+  * `POST /crop` - Adds a new crop management entry.
+  * `GET /crop/{crop_id}` - Retrieves details about a specific crop management entry.
+  * `PUT /crop/{crop_id}` - Updates an existing crop management entry.
+  * `GET /all` - Fetches a list of all available crop managmaent entries.
+  * `POST /crop-type` - Creates a new crop type.
+  * `GET /all-crop-types` - Fetches a list of all available crop types.
 
 ### Sensor Data Service
-- **Purpose**: Receives sensor readings through MQTT and stores them in InfluxDB for time-series analysis.
-- **Key Features**: Subscribes to MQTT topics, parses sensor payloads, and provides endpoints to query historical data.
-- **Endpoints**:
-    - `GET /health` - Performs a health check on the sensor data service.
-    - `POST /simulate-sensor-data` - Simulates sensor data input for testing purposes.
-    - `GET /device_data/{device_id}/{sensor_type}/{time}` - Queries time-series data for a specified device and sensor.
-    - `POST /actuator-mode-update` - Update actuators mode.
-    - `GET /sensor-data/{sensor_id}/{time}` - Get time series data for a specific sensor_id.
+
+* **Purpose**: Receives sensor readings through MQTT and stores them in InfluxDB for time-series analysis.
+
+* **Key Features**: Subscribes to MQTT topics, parses sensor payloads, and provides endpoints to query historical data.
+* **Endpoints**:
+  * `GET /health` - Performs a health check on the sensor data service.
+  * `POST /simulate-sensor-data` - Simulates sensor data input for testing purposes.
+  * `GET /device_data/{device_id}/{sensor_type}/{time}` - Queries time-series data for a specified device and sensor.
+  * `POST /actuator-mode-update` - Update actuators mode.
+  * `GET /sensor-data/{sensor_id}/{time}` - Get time series data for a specific sensor_id.
 
 ### Rule Service
-- **Purpose**: Handles operations related to rules and rules actions.
-- **Key Features**:  Let you create rules which will control actuators based on time or sensors values.
-- **Endpoints**:
-    - `GET /rule/{rule_id}` - Get details about rule
-    - `POST /rule/` - Creates new rule and rule's actions
-    - `GET /all/ ` - Get all users rules, can be filtered by farm_id, sensor_id or trigger_type
-    - `PUT /rule/{rule_id}` - Update rule's information
-    - `DELETE /rule/{rule_id}` - Delete rule
+
+* **Purpose**: Handles operations related to rules and rules actions.
+
+* **Key Features**:  Let you create rules which will control actuators based on time or sensors values.
+* **Endpoints**:
+  * `GET /rule/{rule_id}` - Get details about rule
+  * `POST /rule/` - Creates new rule and rule's actions
+  * `GET /all/` - Get all users rules, can be filtered by farm_id, sensor_id or trigger_type
+  * `PUT /rule/{rule_id}` - Update rule's information
+  * `DELETE /rule/{rule_id}` - Delete rule
+
 </details>
 
 ---
 
 ## 🎯 Future Plans & Roadmap
 
-
--   [ ] Increase test coverage to 80% using **Pytest**.
--   [ ] Set up a **CI/CD pipeline** with GitHub Actions for automated testing and builds.
+* [ ] Increase test coverage to 80% using **Pytest**.
+* [ ] Set up a **CI/CD pipeline** with GitHub Actions for automated testing and builds.
 
 ---
-

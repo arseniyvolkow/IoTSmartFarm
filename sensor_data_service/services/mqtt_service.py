@@ -37,6 +37,9 @@ class AsyncMQTTService:
         # Храним задачи в списке, чтобы их было удобно отменять скопом
         self._tasks: List[asyncio.Task] = []
         self._publish_queue = asyncio.Queue()
+        self._incoming_queue = asyncio.Queue()
+        self._batch_size = 500
+        self._batch_timeout = 0.1
 
     async def start(self):
         """Запуск сервиса: инициализация подключения и воркера отправки."""
@@ -45,9 +48,10 @@ class AsyncMQTTService:
             return
             
         self._running = True
-        # Запускаем два основных цикла: чтение (подключение) и запись (публикация)
+        # Запускаем основные циклы
         self._tasks.append(asyncio.create_task(self._connection_loop()))
         self._tasks.append(asyncio.create_task(self._publish_loop()))
+        self._tasks.append(asyncio.create_task(self._batch_worker()))
         
         logger.info(f"Async MQTT Service started (Broker: {self.broker}:{self.port})")
 
@@ -102,8 +106,8 @@ class AsyncMQTTService:
                     async for message in client.messages:
                         if not self._running:
                             break
-                        # Запускаем обработку сообщения в фоне, чтобы не тормозить цикл чтения
-                        asyncio.create_task(self._handle_message(message))
+                        # Просто кладем в очередь, максимально быстро освобождая цикл чтения
+                        await self._incoming_queue.put(message)
 
             except aiomqtt.MqttError as e:
                 self._connected = False
@@ -119,6 +123,77 @@ class AsyncMQTTService:
             if self._running:
                 logger.info(f"Reconnecting in {self.reconnect_interval}s...")
                 await asyncio.sleep(self.reconnect_interval)
+
+    async def _batch_worker(self):
+        """Воркер, который собирает сообщения в батчи и отправляет их на обработку."""
+        while self._running:
+            batch = []
+            try:
+                # Ждем первое сообщение (блокируемся, если очередь пуста)
+                try:
+                    message = await asyncio.wait_for(self._incoming_queue.get(), timeout=1.0)
+                    batch.append(message)
+                except asyncio.TimeoutError:
+                    continue
+
+                # Добираем остальные сообщения до размера батча или до таймаута
+                start_time = asyncio.get_event_loop().time()
+                while len(batch) < self._batch_size:
+                    time_left = self._batch_timeout - (asyncio.get_event_loop().time() - start_time)
+                    if time_left <= 0:
+                        break
+                    
+                    try:
+                        message = await asyncio.wait_for(self._incoming_queue.get(), timeout=time_left)
+                        batch.append(message)
+                    except asyncio.TimeoutError:
+                        break
+                
+                if batch:
+                    await self._process_batch(batch)
+                    for _ in range(len(batch)):
+                        self._incoming_queue.task_done()
+
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"Error in batch worker: {e}")
+                await asyncio.sleep(0.1)
+
+    async def _process_batch(self, batch: List[aiomqtt.Message]):
+        """Обработка группы сообщений."""
+        all_normalized_data = []
+        for message in batch:
+            try:
+                topic = str(message.topic)
+                payload_str = message.payload.decode()
+                
+                # 1. Валидация JSON
+                try:
+                    payload = json.loads(payload_str)
+                except json.JSONDecodeError:
+                    continue
+
+                # 2. Извлечение данных
+                sensors_data = payload.get("sensors")
+                if not sensors_data:
+                    continue
+
+                # 3. Нормализация данных
+                normalized_data = self._normalize_sensor_data(sensors_data)
+                all_normalized_data.extend(normalized_data)
+
+            except Exception as e:
+                logger.error(f"Error parsing message in batch: {e}")
+
+        if all_normalized_data:
+            # 4. Сохранение (Батчем в Influx и Redis)
+            await asyncio.gather(
+                self._safe_save_influx(all_normalized_data),
+                self._safe_save_redis(all_normalized_data),
+                return_exceptions=True
+            )
+            logger.debug(f"Processed batch of {len(batch)} messages ({len(all_normalized_data)} data points)")
 
     async def _publish_loop(self):
         """Воркер, который разгребает очередь на отправку."""
@@ -151,39 +226,6 @@ class AsyncMQTTService:
                 logger.error(f"Error in publish loop: {e}")
 
     # --- Обработка данных (Data Processing) ---
-
-    async def _handle_message(self, message: aiomqtt.Message):
-        """Обработка одного сообщения."""
-        try:
-            topic = str(message.topic)
-            payload_str = message.payload.decode()
-            
-            # 1. Валидация JSON
-            try:
-                payload = json.loads(payload_str)
-            except json.JSONDecodeError:
-                logger.warning(f"Invalid JSON on {topic}: {payload_str[:50]}...")
-                return
-
-            # 2. Извлечение данных
-            sensors_data = payload.get("sensors")
-            if not sensors_data:
-                logger.debug(f"Payload missing 'sensors' key on {topic}")
-                return
-
-            # 3. Нормализация данных
-            normalized_data = self._normalize_sensor_data(sensors_data)
-            
-            # 4. Сохранение (Параллельно в Influx и Redis)
-            # return_exceptions=True не даст одной ошибке (например, Influx) поломать вторую (Redis)
-            await asyncio.gather(
-                self._safe_save_influx(normalized_data),
-                self._safe_save_redis(normalized_data),
-                return_exceptions=True
-            )
-
-        except Exception as e:
-            logger.error(f"Critical error handling message from {topic}: {e}")
 
     def _normalize_sensor_data(self, sensor_data: Union[Dict, List]) -> List[Dict]:
         """

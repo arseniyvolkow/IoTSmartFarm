@@ -1,16 +1,16 @@
-version: '3.8'
-
 services:
   traefik:
-    image: traefik:v2.10
+    image: traefik:v3.6.9
     container_name: traefik
+    environment:
+      - TRAEFIK_PROVIDERS_DOCKER_APIVERSION=1.53
     command:
       - "--api.insecure=true"
       - "--providers.docker=true"
       - "--entrypoints.web.address=:80"
     ports:
       - "80:80"
-      - "8080:8080"  # Dashboard access
+      - "8081:8080"  # Dashboard access (mapped to 8081 on host)
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock"
     restart: unless-stopped
@@ -129,6 +129,10 @@ services:
       - "./mosquitto/log:/mosquitto/log"
       - "./mosquitto/certs:/mosquitto/certs"
     env_file: ".env"
+    ulimits:
+      nofile:
+        soft: 655536
+        hard: 655536
     restart: unless-stopped
     networks:
       - app-network
