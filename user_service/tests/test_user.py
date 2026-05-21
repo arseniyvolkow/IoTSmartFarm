@@ -2,7 +2,8 @@ import pytest
 import pytest_asyncio
 from fastapi import status, HTTPException
 from user_service.main import app
-from user_service.dependencies import get_current_user, get_token_payload
+from user_service.dependencies import get_current_user
+from common.security import get_token_payload, get_current_user_identity, UserIdentity
 from user_service.schemas import UserRegister
 
 # Test data aligned with schemas
@@ -26,7 +27,7 @@ async def authenticated_user(user_service):
 async def test_get_my_profile_api(client, authenticated_user):
     """Test GET /user/me retrieves the currently logged-in user's data."""
     # Override dependencies to simulate an active session
-    app.dependency_overrides[get_token_payload] = lambda: {"sub": authenticated_user.id}
+    app.dependency_overrides[get_current_user_identity] = lambda: UserIdentity({"sub": authenticated_user.id})
     app.dependency_overrides[get_current_user] = lambda: authenticated_user
     
     try:
@@ -43,7 +44,7 @@ async def test_update_my_profile_api(client, authenticated_user):
     """
     Test PUT /user/me profile update logic for all personal fields.
     """
-    app.dependency_overrides[get_token_payload] = lambda: {"sub": authenticated_user.id}
+    app.dependency_overrides[get_current_user_identity] = lambda: UserIdentity({"sub": authenticated_user.id})
     app.dependency_overrides[get_current_user] = lambda: authenticated_user
     
     new_email = "updated_route@example.com"
@@ -70,7 +71,7 @@ async def test_update_my_profile_api(client, authenticated_user):
 @pytest.mark.asyncio
 async def test_delete_my_profile_api(client, authenticated_user):
     """Test DELETE /user/me soft deletion."""
-    app.dependency_overrides[get_token_payload] = lambda: {"sub": authenticated_user.id}
+    app.dependency_overrides[get_current_user_identity] = lambda: UserIdentity({"sub": authenticated_user.id})
     app.dependency_overrides[get_current_user] = lambda: authenticated_user
     
     try:
@@ -88,7 +89,7 @@ async def test_admin_get_user_by_id_api(client, authenticated_user):
         "access": {"users": {"r": 1, "w": 1, "d": 1}},
         "g_perms": {"r_all": False, "w_all": False}
     }
-    app.dependency_overrides[get_token_payload] = lambda: admin_payload
+    app.dependency_overrides[get_current_user_identity] = lambda: UserIdentity(admin_payload)
     
     try:
         response = await client.get(f"/user/{authenticated_user.id}")
@@ -105,7 +106,7 @@ async def test_admin_rbac_denial_api(client):
         "access": {}, 
         "g_perms": {}
     }
-    app.dependency_overrides[get_token_payload] = lambda: regular_payload
+    app.dependency_overrides[get_current_user_identity] = lambda: UserIdentity(regular_payload)
     
     try:
         response = await client.get("/user/")

@@ -11,13 +11,14 @@ from user_service.security import (
 
 ## --- Password Hashing Tests ---
 
-def test_password_hashing():
+@pytest.mark.asyncio
+async def test_password_hashing():
     password = "secure_password123"
-    hashed = hash_password(password)
-    
+    hashed = await hash_password(password)
+
     assert hashed != password
-    assert verify_password(password, hashed) is True
-    assert verify_password("wrong_password", hashed) is False
+    assert await verify_password(password, hashed) is True
+    assert await verify_password("wrong_password", hashed) is False
 
 ## --- Token Creation Tests ---
 

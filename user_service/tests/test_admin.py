@@ -1,7 +1,7 @@
 import pytest
 from fastapi import status
 from user_service.main import app
-from common.security import get_token_payload
+from common.security import get_token_payload, get_current_user_identity, UserIdentity
 
 # Mock payload that has full access to the "roles" resource
 ADMIN_PAYLOAD = {
@@ -19,12 +19,12 @@ def override_security():
     Automatically override the security dependency for all tests in this file.
     This bypasses JWT validation and provides a pre-defined admin payload.
     """
-    async def mock_payload():
-        return ADMIN_PAYLOAD
+    async def mock_identity():
+        return UserIdentity(ADMIN_PAYLOAD)
 
-    app.dependency_overrides[get_token_payload] = mock_payload
+    app.dependency_overrides[get_current_user_identity] = mock_identity
     yield
-    app.dependency_overrides.pop(get_token_payload, None)
+    app.dependency_overrides.pop(get_current_user_identity, None)
 
 @pytest.mark.asyncio
 async def test_create_role_api(client):
@@ -112,10 +112,10 @@ async def test_rbac_restriction_api(client):
     by simulating a user with NO permissions.
     """
     async def mock_no_perms_payload():
-        return {"sub": "poor-user", "access": {}, "g_perms": {}}
+        return UserIdentity({"sub": "poor-user", "access": {}, "g_perms": {}})
     
     # Temporarily override with a restricted user
-    app.dependency_overrides[get_token_payload] = mock_no_perms_payload
+    app.dependency_overrides[get_current_user_identity] = mock_no_perms_payload
     
     response = await client.get("/admin/roles/")
     # Should return 403 Forbidden because CheckAccess("roles", "read") will fail

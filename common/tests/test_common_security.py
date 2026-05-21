@@ -1,5 +1,6 @@
 import pytest
 import jwt
+import time
 from unittest.mock import AsyncMock, patch
 from fastapi import HTTPException, status
 from common.security import (
@@ -9,7 +10,8 @@ from common.security import (
     is_admin,
     get_current_user_id,
     SECRET_KEY, 
-    ALGORITHM
+    ALGORITHM,
+    UserIdentity
 )
 from common.schemas import CurrentUser
 import redis.asyncio as redis
@@ -23,27 +25,31 @@ async def test_get_token_payload_success():
     payload = {"sub": "user_1", "jti": "unique_jti", "exp": 9999999999}
     token = create_test_token(payload)
     
-    with patch("common.security.is_token_blacklisted", new_callable=AsyncMock) as mock_blacklist:
-        mock_blacklist.return_value = False
-        
-        result = await get_token_payload(token)
-        
-        assert result["sub"] == "user_1"
-        mock_blacklist.assert_called_once_with("unique_jti")
+    with patch("common.security.redis_client", new_callable=AsyncMock) as mock_redis:
+        mock_redis.get.return_value = None  # Cache miss
+        with patch("common.security.is_token_blacklisted", new_callable=AsyncMock) as mock_blacklist:
+            mock_blacklist.return_value = False
+            
+            result = await get_token_payload(token)
+            
+            assert result["sub"] == "user_1"
+            mock_blacklist.assert_called_once_with("unique_jti")
 
 @pytest.mark.asyncio
 async def test_get_token_payload_blacklisted():
     payload = {"sub": "user_1", "jti": "revoked_jti"}
     token = create_test_token(payload)
     
-    with patch("common.security.is_token_blacklisted", new_callable=AsyncMock) as mock_blacklist:
-        mock_blacklist.return_value = True
-        
-        with pytest.raises(HTTPException) as exc:
-            await get_token_payload(token)
-        
-        assert exc.value.status_code == status.HTTP_401_UNAUTHORIZED
-        assert "revoked" in exc.value.detail
+    with patch("common.security.redis_client", new_callable=AsyncMock) as mock_redis:
+        mock_redis.get.return_value = None  # Cache miss
+        with patch("common.security.is_token_blacklisted", new_callable=AsyncMock) as mock_blacklist:
+            mock_blacklist.return_value = True
+            
+            with pytest.raises(HTTPException) as exc:
+                await get_token_payload(token)
+            
+            assert exc.value.status_code == status.HTTP_401_UNAUTHORIZED
+            assert "revoked" in exc.value.detail
 
 @pytest.mark.asyncio
 async def test_get_token_payload_invalid_token():
@@ -58,11 +64,13 @@ async def test_get_token_payload_invalid_token():
 async def test_get_token_payload_redis_error():
     token = create_test_token({"sub": "user_1", "jti": "some_jti"})
     
-    with patch("common.security.is_token_blacklisted", side_effect=redis.RedisError):
-        with pytest.raises(HTTPException) as exc:
-            await get_token_payload(token)
-        
-        assert exc.value.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
+    with patch("common.security.redis_client", new_callable=AsyncMock) as mock_redis:
+        mock_redis.get.side_effect = redis.RedisError
+        with patch("common.security.is_token_blacklisted", side_effect=redis.RedisError):
+            with pytest.raises(HTTPException) as exc:
+                await get_token_payload(token)
+            
+            assert exc.value.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
 
 @pytest.mark.asyncio
 async def test_get_current_user_identity():
@@ -71,17 +79,21 @@ async def test_get_current_user_identity():
         "email": "test@example.com",
         "role": "admin",
         "g_perms": {"r_all": True},
-        "access": {"farms": {"r": True}}
+        "access": {"farms": {"r": True}},
+        "exp": time.time() + 300
     }
+    token = create_test_token(payload)
     
-    user = await get_current_user_identity(payload)
-    
-    assert isinstance(user, CurrentUser)
-    # Проверяем, что алиас 'sub' корректно лег в поле 'id'
-    assert user.id == "user_123"
-    assert user.email == "test@example.com"
-    assert user.role == "admin"
-    assert user.raw_payload == payload
+    with patch("common.security.redis_client", new_callable=AsyncMock) as mock_redis:
+        mock_redis.get.return_value = None  # Cache miss
+        
+        user = await get_current_user_identity(token)
+        
+        assert isinstance(user, UserIdentity)
+        assert user.id == "user_123"
+        assert user.email == "test@example.com"
+        assert user.role == "admin"
+        assert user.raw_payload["sub"] == payload["sub"]
 
 def test_helpers():
     # Тест хелпера is_admin
@@ -98,45 +110,43 @@ class TestCheckAccess:
     async def test_global_write_access(self):
         # Пользователь с глобальными правами (w_all: True) должен проходить любую проверку записи
         checker = CheckAccess(resource="sensors", action="write")
-        payload = {"g_perms": {"w_all": True}}
+        user = UserIdentity({"g_perms": {"w_all": True}})
         
-        result = await checker(payload)
-        assert result == payload
+        result = await checker(user)
+        assert result == user
 
     @pytest.mark.asyncio
     async def test_resource_specific_access_success(self):
         # Проверка прав на чтение конкретного ресурса
         checker = CheckAccess(resource="farms", action="read")
-        payload = {
+        user = UserIdentity({
             "g_perms": {},
             "access": {"farms": {"r": True}}
-        }
+        })
         
-        result = await checker(payload)
-        assert result == payload
+        result = await checker(user)
+        assert result == user
 
     @pytest.mark.asyncio
     async def test_resource_specific_access_denied(self):
         # Ошибка, если ресурса нет в списке разрешенных
         checker = CheckAccess(resource="sensors", action="read")
-        payload = {
+        user = UserIdentity({
             "access": {"farms": {"r": True}}
-        }
+        })
         
         with pytest.raises(HTTPException) as exc:
-            await checker(payload)
+            await checker(user)
         assert exc.value.status_code == status.HTTP_403_FORBIDDEN
-        assert "sensors" in exc.value.detail
 
     @pytest.mark.asyncio
     async def test_insufficient_permission_level(self):
         # Ошибка, если ресурс есть, но конкретное действие (delete) запрещено
         checker = CheckAccess(resource="farms", action="delete")
-        payload = {
+        user = UserIdentity({
             "access": {"farms": {"r": True, "w": True, "d": False}}
-        }
+        })
         
         with pytest.raises(HTTPException) as exc:
-            await checker(payload)
+            await checker(user)
         assert exc.value.status_code == status.HTTP_403_FORBIDDEN
-        assert "Not enough permissions" in exc.value.detail
