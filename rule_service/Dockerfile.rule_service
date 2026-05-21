@@ -22,4 +22,5 @@ ENV PYTHONPATH=/app
 EXPOSE 8004
 
 
-CMD ["uvicorn", "rule_service.main:app", "--host", "0.0.0.0", "--port", "8004"]
+RUN pip install gunicorn
+CMD ["gunicorn", "rule_service.main:app", "--workers", "4", "--worker-class", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8004"]

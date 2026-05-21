@@ -102,23 +102,45 @@ async def get_timeseries_data_by_id(
     sensor_id: str,
     time: str,
     influx_service: InfluxServiceDependency,
+    redis_service: RedisServiceDependency,
 ):
-    """Get historical data."""
+    """Get historical data with Redis caching."""
     try:
+        # 1. Try to get from Cache first
+        cached_data = await redis_service.get_cached_history(sensor_id, time)
+        if cached_data:
+            logger.debug(f"Serving history for {sensor_id} from cache")
+            return {
+                "status": "success",
+                "sensor_id": sensor_id,
+                "data": cached_data,
+                "cached": True
+            }
+
+        # 2. Cache miss: Query InfluxDB
         data_points = await influx_service.query_data_by_sensor_id(
             sensor_id=sensor_id, time_range=time
         )
+        
         if not data_points:
             raise HTTPException(
                 status_code=404,
                 detail=f"No data found for sensor_id '{sensor_id}'.",
             )
+
+        # 3. Save to cache for 15 seconds to prevent DB hammering
+        await redis_service.set_cached_history(sensor_id, time, data_points, ttl=15)
+
         return {
             "status": "success",
             "sensor_id": sensor_id,
             "data": data_points,
+            "cached": False
         }
+    except HTTPException:
+        raise
     except Exception as e:
+        logger.exception(f"Unexpected error querying historical data: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -133,8 +155,14 @@ async def actuator_mode_update(
     mqtt_service: MQTTServiceDependency,
 ):
     try:
+        tasks = []
         for actuator in action_payload.actuators_to_control:
             topic = f"actuator/{actuator.actuator_id}/command"
-            await mqtt_service.publish_mqtt_message(topic, actuator.command)
+            tasks.append(mqtt_service.publish_mqtt_message(topic, actuator.command))
+        
+        if tasks:
+            await asyncio.gather(*tasks)
+            
     except Exception as e:
+        logger.exception(f"Error updating actuators: {e}")
         raise HTTPException(status_code=500, detail=str(e))

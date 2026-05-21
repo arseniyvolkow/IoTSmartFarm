@@ -1,4 +1,5 @@
 import logging
+import os
 from fastapi import FastAPI
 from sensor_data_service.database import Settings
 from sensor_data_service.services.redis_service import RedisService
@@ -34,6 +35,9 @@ async def lifespan(app: FastAPI):
         await influx_service.__aenter__()
         logger.info("InfluxDB Service initialized.")
 
+        # Ensure unique client_id for each Gunicorn worker process
+        unique_client_id = f"sensor_api_publisher_{os.getpid()}"
+
         mqtt_service = AsyncMQTTService(
             broker=settings.MQTT_BROKER,
             port=settings.MQTT_PORT,
@@ -41,9 +45,11 @@ async def lifespan(app: FastAPI):
             password=settings.MQTT_PASSWORD,
             influx_service=influx_service,
             redis_service=redis_service,
+            client_id=unique_client_id
         )
-        await mqtt_service.start()
-        logger.info("Async MQTT Service started.")
+        # Start in 'api' mode: Only publish, no background ingestion batching
+        await mqtt_service.start(mode="api")
+        logger.info(f"Async MQTT Service started in API mode (Client ID: {unique_client_id}).")
 
         # 3. Store in State
         app.state.influx_service = influx_service

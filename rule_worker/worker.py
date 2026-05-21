@@ -18,7 +18,17 @@ from rule_worker.models import Rules, RuleTriggerType, Base
 from rule_worker.services.redis_service import RedisService
 from rule_worker.services.action_executor import ActionExecutor
 
+import functools
+
 logger = logging.getLogger(__name__)
+
+@functools.lru_cache(maxsize=10000)
+def _compile_rule(expression: str) -> rule_engine.Rule:
+    """
+    Compiles a rule expression into an AST. 
+    Uses an LRU cache to prevent memory exhaustion while avoiding recompilation overhead.
+    """
+    return rule_engine.Rule(expression)
 
 
 class RuleWorker:
@@ -29,9 +39,8 @@ class RuleWorker:
         self._owns_http_client = http_client is None
         self.http_client = http_client or httpx.AsyncClient(timeout=30.0)
         
-        # Instantiate the ActionExecutor and pass dependencies
-        sensor_service_url = os.getenv("SENSOR_DATA_SERVICE_HOST", "http://sensor_data_service:8000")
-        self.action_executor = ActionExecutor(self.http_client, sensor_service_url)
+        # Instantiate the ActionExecutor and pass RedisService for pub/sub decoupling
+        self.action_executor = ActionExecutor(self.redis_service)
 
     async def close(self):
         """Clean up resources."""
@@ -152,7 +161,7 @@ class RuleWorker:
             if context is None:
                 return False
 
-            rule_engine_obj = rule_engine.Rule(rule.rule_expression)
+            rule_engine_obj = _compile_rule(rule.rule_expression)
             
             if rule_engine_obj.matches(context):
                 await self._execute_matched_rule_actions(rule, context, db_session)
@@ -215,46 +224,61 @@ class RuleWorker:
             logger.error(f"❌ Error evaluating rules for sensor {sensor_id}: {e}", exc_info=True)
 
     async def listen_for_sensor_updates(self):
-        """Listen to Redis Pub/Sub for real-time sensor updates."""
-        logger.info("📡 Starting real-time sensor update listener...")
+        """Listen to Redis Streams for real-time sensor updates."""
+        logger.info("📡 Starting real-time sensor update stream listener...")
+        
+        stream_name = "sensor_updates"
+        group_name = "rule_workers_group"
+        consumer_name = f"worker_{os.getpid()}"
+
+        await self.redis_service.ensure_consumer_group(stream_name, group_name)
         
         while True:
-            pubsub = None
             try:
-                pubsub = await self.redis_service.subscribe_to_channel("sensor_updates")
-                if not pubsub:
-                    await asyncio.sleep(5)
+                # Read from the stream
+                messages = await self.redis_service.read_stream_group(
+                    stream_name=stream_name, 
+                    group_name=group_name, 
+                    consumer_name=consumer_name, 
+                    count=10, 
+                    block=2000
+                )
+
+                if not messages:
                     continue
 
-                async for message in pubsub.listen():
-                    if message["type"] == "message":
+                for stream, msg_list in messages:
+                    for message_id, msg_data in msg_list:
                         try:
-                            logger.info(f"📩 Received sensor update: {message['data']}")
-                            data = json.loads(message["data"])
-                            sensor_id = data.get("sensor_id")
-                            value = data.get("value")
+                            # msg_data might be like: {"data": '{"sensor_id": "...", "value": 25.5}'}
+                            raw_payload = msg_data.get("data")
+                            if raw_payload:
+                                logger.info(f"📩 Received sensor update stream msg: {raw_payload}")
+                                data = json.loads(raw_payload)
+                                sensor_id = data.get("sensor_id")
+                                value = data.get("value")
+                                
+                                if sensor_id is not None and value is not None:
+                                    try:
+                                        val_float = float(value)
+                                        async with get_db() as db_session:
+                                            await self.evaluate_rules_for_sensor(sensor_id, val_float, db_session)
+                                    except ValueError:
+                                        logger.warning(f"Received non-numeric value for sensor {sensor_id}: {value}")
                             
-                            if sensor_id is not None and value is not None:
-                                try:
-                                    val_float = float(value)
-                                    async with get_db() as db_session:
-                                        await self.evaluate_rules_for_sensor(sensor_id, val_float, db_session)
-                                except ValueError:
-                                    logger.warning(f"Received non-numeric value for sensor {sensor_id}: {value}")
+                            # Acknowledge the message so it's removed from PEL
+                            await self.redis_service.ack_message(stream_name, group_name, message_id)
+
                         except json.JSONDecodeError:
-                            logger.error(f"Failed to decode sensor update message: {message['data']}")
+                            logger.error(f"Failed to decode sensor update message: {msg_data}")
+                            # ACK invalid messages to avoid getting stuck
+                            await self.redis_service.ack_message(stream_name, group_name, message_id)
                         except Exception as e:
                             logger.error(f"Error processing sensor update: {e}", exc_info=True)
             
             except Exception as e:
-                logger.error(f"❌ Error in Pub/Sub listener: {e}", exc_info=True)
+                logger.error(f"❌ Error in Stream listener: {e}", exc_info=True)
                 await asyncio.sleep(5)
-            finally:
-                if pubsub:
-                    try:
-                        await pubsub.unsubscribe("sensor_updates")
-                    except:
-                        pass
 
 async def run_periodic_evaluation(rule_worker: RuleWorker, interval_seconds: int):
     """Run periodic evaluation for time-based rules."""

@@ -4,6 +4,7 @@ import jwt
 from datetime import timedelta, datetime, timezone
 import os
 import uuid
+import asyncio
 
 # Import shared configuration and validation logic
 from common.security import SECRET_KEY, ALGORITHM, decode_access_token
@@ -11,22 +12,38 @@ from common.security import SECRET_KEY, ALGORITHM, decode_access_token
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "20"))
 REFRESH_TOKEN_EXPIRE_DAYS = 7
 
-# bcrypt_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-
-def hash_password(password: str):
-    # Convert string to bytes
+async def hash_password(password: str):
+    """
+    ASYNCHRONOUS PASSWORD HASHING
+    -----------------------------
+    Standard Bcrypt is synchronous and CPU-heavy (~100ms per call).
+    Running it normally blocks the event loop and stops all other requests.
+    
+    Fix: Using asyncio.to_thread to move the computation to a worker thread.
+    """
     pwd_bytes = password.encode("utf-8")
-    # Generate salt and hash
-    salt = bcrypt.gensalt()
-    hashed_password = bcrypt.hashpw(pwd_bytes, salt)
-    return hashed_password.decode("utf-8")
+    
+    def _hash():
+        salt = bcrypt.gensalt()
+        return bcrypt.hashpw(pwd_bytes, salt).decode("utf-8")
+        
+    return await asyncio.to_thread(_hash)
 
 
-def verify_password(plain_password, hashed_password):
-    return bcrypt.checkpw(
-        plain_password.encode("utf-8"), hashed_password.encode("utf-8")
-    )
+async def verify_password(plain_password: str, hashed_password: str):
+    """
+    ASYNCHRONOUS PASSWORD VERIFICATION
+    ----------------------------------
+    Prevents the event loop from freezing during login attempts.
+    """
+    def _verify():
+        return bcrypt.checkpw(
+            plain_password.encode("utf-8"), 
+            hashed_password.encode("utf-8")
+        )
+        
+    return await asyncio.to_thread(_verify)
 
 
 def create_token(

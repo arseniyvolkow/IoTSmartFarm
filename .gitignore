@@ -179,3 +179,5 @@ influxdb
 
 postgresql_device_database
 postgresql_user_database
+
+load_test

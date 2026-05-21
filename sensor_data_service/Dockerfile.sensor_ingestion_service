@@ -4,17 +4,12 @@ FROM python:3.11-slim
 # Set the working directory in the container to /app
 WORKDIR /app
 
-# --------------------------------------------------------
-# FIX: Устанавливаем curl для Healthcheck
-# --------------------------------------------------------
-RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
-
 # 1. Сначала копируем зависимости (для кэширования слоев)
 COPY sensor_data_service/requirements.txt /app/requirements.txt
 
 # Install packages
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 RUN pip install --no-cache-dir -r requirements.txt
-RUN pip install pyjwt
 
 # 2. Копируем ОБЩУЮ библиотеку
 COPY common ./common
@@ -25,9 +20,5 @@ COPY sensor_data_service ./sensor_data_service
 # 4. ВАЖНО: Добавляем текущую директорию в PYTHONPATH
 ENV PYTHONPATH=/app
 
-# Make port 8003 available
-EXPOSE 8003
-
-# Run app.py
-RUN pip install gunicorn
-CMD ["gunicorn", "sensor_data_service.main:app", "--workers", "4", "--worker-class", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8003"]
+# Run the ingestion worker (standalone python script)
+CMD ["python", "-m", "sensor_data_service.main_ingestion"]

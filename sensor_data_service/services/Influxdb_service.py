@@ -1,4 +1,5 @@
 import logging
+import asyncio
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
 from influxdb_client import Point
@@ -20,27 +21,34 @@ class InfluxDBService:
         self._client: Optional[InfluxDBClientAsync] = None
         self.write_api = None
         self.query_api = None
+        self._lock = asyncio.Lock()
 
     async def __aenter__(self):
         """Initializes the async client and APIs upon entering the context."""
-        logger.info("Initializing InfluxDB client...")
-        try:
-            self._client = InfluxDBClientAsync(
-                url=self._url, token=self._token, org=self._org
-            )
-            self.write_api = self._client.write_api()
-            self.query_api = self._client.query_api()
-            logger.info("✅ InfluxDB client initialized.")
-            return self
-        except Exception as e:
-            logger.error(f"Failed to initialize InfluxDB client: {e}")
-            raise
+        async with self._lock:
+            if not self._client:
+                logger.info("Initializing InfluxDB client...")
+                try:
+                    self._client = InfluxDBClientAsync(
+                        url=self._url, token=self._token, org=self._org
+                    )
+                    self.write_api = self._client.write_api()
+                    self.query_api = self._client.query_api()
+                    logger.info("✅ InfluxDB client initialized.")
+                except Exception as e:
+                    logger.error(f"Failed to initialize InfluxDB client: {e}")
+                    raise
+        return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Closes the client connection upon exiting the context."""
-        if self._client:
-            await self._client.close()
-            logger.info("InfluxDB client closed.")
+        async with self._lock:
+            if self._client:
+                await self._client.close()
+                self._client = None
+                self.write_api = None
+                self.query_api = None
+                logger.info("InfluxDB client closed.")
 
     async def save_sensor_data(self, sensor_data_list: List[Dict[str, Any]]):
         """
@@ -59,7 +67,6 @@ class InfluxDBService:
                 sensor_type = sensor_data.get("sensor_type")
                 value = sensor_data.get("value")
                 
-                # Валидация данных перед созданием точки
                 if not all([sensor_id, sensor_type, value is not None]):
                     logger.warning(f"Skipping invalid sensor data: {sensor_data}")
                     continue
@@ -105,14 +112,15 @@ class InfluxDBService:
                 f"Invalid time range '{time_range}'. Valid options: {', '.join(valid_times.keys())}"
             )
 
-        # Flux Query: parameterized using f-string (safe here as we validate inputs)
+        # Added limit(n: 1000) to prevent crashing on massive datasets under load
         query = f"""
             from(bucket: "{self.bucket}")
                 |> range(start: {valid_times[time_range]})
                 |> filter(fn: (r) => r["_measurement"] == "sensor_data")
                 |> filter(fn: (r) => r["_field"] == "value")
                 |> filter(fn: (r) => r["sensor_id"] == "{sensor_id}")
-                |> sort(columns: ["_time"])
+                |> sort(columns: ["_time"], desc: true)
+                |> limit(n: 1000)
         """
         
         try:
@@ -144,7 +152,6 @@ class InfluxDBService:
             return False
             
         try:
-            # Simple query to check connectivity
             query = f'buckets() |> filter(fn: (r) => r.name == "{self.bucket}") |> limit(n: 1)'
             await self.query_api.query(query, org=self._org)
             return True

@@ -60,6 +60,7 @@ class Farms(Base):
     
     # Relationships
     devices: Mapped[List["Devices"]] = relationship(back_populates="farm")
+    access_entries: Mapped[List["FarmAccess"]] = relationship(back_populates="farm")
     crop_management_entries: Mapped[List["CropManagement"]] = relationship(
         back_populates="farm"
     )

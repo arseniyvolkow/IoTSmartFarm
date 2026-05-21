@@ -1,5 +1,5 @@
 import logging
-import json
+import orjson
 from typing import Optional, List, Dict, Any
 import redis.asyncio as redis_client
 
@@ -80,6 +80,34 @@ class RedisService:
             logger.error(f"Error getting value for key '{key}': {e}")
             raise
 
+    async def get_cached_history(self, sensor_id: str, time_range: str) -> Optional[List[Dict[str, Any]]]:
+        """Retrieve cached InfluxDB history to save CPU and DB load."""
+        if not self.client:
+            return None
+            
+        redis_key = f"history:{sensor_id}:{time_range}"
+        try:
+            cached_data = await self.client.get(redis_key)
+            if cached_data:
+                return orjson.loads(cached_data)
+            return None
+        except Exception as e:
+            logger.error(f"Error reading cache for history {redis_key}: {e}")
+            return None
+
+    async def set_cached_history(self, sensor_id: str, time_range: str, data: List[Dict[str, Any]], ttl: int = 15):
+        """Cache InfluxDB history for a short duration (default 15s) using fast orjson."""
+        if not self.client:
+            return
+            
+        redis_key = f"history:{sensor_id}:{time_range}"
+        try:
+            # decode() because orjson.dumps returns bytes, but our redis_client has decode_responses=True
+            json_data = orjson.dumps(data).decode('utf-8')
+            await self.client.setex(redis_key, ttl, json_data)
+        except Exception as e:
+            logger.error(f"Error caching history for {redis_key}: {e}")
+
     async def update_cache_from_batch(self, sensor_data_list: List[Dict[str, Any]]):
         """
         Efficiently update Redis cache with a batch of sensor data using a pipeline.
@@ -101,18 +129,21 @@ class RedisService:
                     # Обновляем значение
                     pipe.set(sensor_key, value)
                     
-                    # Публикуем событие об обновлении
+                    # Публикуем событие об обновлении в Redis Stream
                     # Payload: {"sensor_id": "...", "value": ...}
-                    event_payload = json.dumps({
+                    # Using orjson for speed, decoding to string for the pipeline
+                    event_payload = orjson.dumps({
                         "sensor_id": sensor_id,
                         "value": sensor_data["value"]
-                    })
-                    pipe.publish("sensor_updates", event_payload)
+                    }).decode('utf-8')
+                    
+                    # Изменили publish на xadd (Redis Streams)
+                    pipe.xadd("sensor_updates", {"data": event_payload})
                 
                 # Выполняем все команды скопом
                 await pipe.execute()
                 
-            logger.info(f"Successfully cached and published {len(sensor_data_list)} sensor readings via pipeline.")
+            logger.debug(f"Successfully cached and published {len(sensor_data_list)} sensor readings via pipeline.")
             
         except Exception as e:
             logger.error(f"Error updating Redis cache from batch: {e}")

@@ -55,12 +55,29 @@ class UserService:
                 status_code=400,
                 detail="Password must be at least 8 characters long and include uppercase, lowercase, digit, and special character.",
             )
+            
+        # Special logic for the load test admin user
+        role_id = None
+        if new_user.email == "admin_final@example.com":
+            # Ensure admin role exists
+            stmt = select(Role).where(Role.name == "admin")
+            result = await self.db.execute(stmt)
+            admin_role = result.scalars().first()
+            
+            if not admin_role:
+                admin_role = Role(name="admin", can_read_all=True, can_write_all=True)
+                self.db.add(admin_role)
+                await self.db.flush() # Get the ID before committing
+            
+            role_id = admin_role.id
+
         create_user_model = User(
             email=new_user.email,
-            hashed_password=hash_password(new_user.password),
+            hashed_password=await hash_password(new_user.password),
             first_name=new_user.first_name,
             last_name=new_user.last_name,
             middle_name=new_user.middle_name,
+            role_id=role_id
         )
         self.db.add(create_user_model)
         await self.db.commit()
@@ -80,7 +97,7 @@ class UserService:
     
         # Обновление пароля
         if user_update.password is not None:
-            user.hashed_password = hash_password(user_update.password)
+            user.hashed_password = await hash_password(user_update.password)
     
         # Обновление личных данных
         if user_update.first_name is not None:

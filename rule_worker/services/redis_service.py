@@ -93,3 +93,62 @@ class RedisService:
         await pubsub.subscribe(channel_name)
         logger.info(f"📡 Subscribed to Redis channel: {channel_name}")
         return pubsub
+
+    async def publish(self, channel_name: str, message: str):
+        """
+        Publishes a message to a Redis channel.
+        """
+        if not self.client:
+            logger.error("Redis client not initialized")
+            return None
+        
+        try:
+            return await self.client.publish(channel_name, message)
+        except Exception as e:
+            logger.error(f"Error publishing to {channel_name}: {e}")
+            return None
+
+    async def ensure_consumer_group(self, stream_name: str, group_name: str):
+        """
+        Ensures a Redis Stream and consumer group exist. Creates them if they don't.
+        """
+        if not self.client:
+            return False
+        try:
+            # Try to create the stream and group. mkstream=True automatically creates the stream if missing.
+            await self.client.xgroup_create(stream_name, group_name, id="0", mkstream=True)
+            logger.info(f"Created consumer group '{group_name}' for stream '{stream_name}'")
+            return True
+        except redis.ResponseError as e:
+            if "BUSYGROUP" in str(e):
+                logger.debug(f"Consumer group '{group_name}' already exists for stream '{stream_name}'")
+                return True
+            logger.error(f"Error creating consumer group: {e}")
+            return False
+
+    async def read_stream_group(self, stream_name: str, group_name: str, consumer_name: str, count: int = 10, block: int = 2000):
+        """
+        Reads messages from a Redis stream using a consumer group.
+        """
+        if not self.client:
+            return []
+        try:
+            # Read from the stream using the group. '>' means read new messages not yet delivered to the group.
+            messages = await self.client.xreadgroup(group_name, consumer_name, {stream_name: ">"}, count=count, block=block)
+            return messages
+        except Exception as e:
+            logger.error(f"Error reading from stream '{stream_name}': {e}")
+            return []
+
+    async def ack_message(self, stream_name: str, group_name: str, message_id: str):
+        """
+        Acknowledges a message in a Redis stream so it's removed from the pending entries list (PEL).
+        """
+        if not self.client:
+            return False
+        try:
+            await self.client.xack(stream_name, group_name, message_id)
+            return True
+        except Exception as e:
+            logger.error(f"Error acknowledging message '{message_id}' in stream '{stream_name}': {e}")
+            return False

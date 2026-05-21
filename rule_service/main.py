@@ -8,10 +8,7 @@ from rule_service.routers import rules
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup logic
-    print("Application startup: Creating database tables...")
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    print("Database tables created or already exist.")
+    print("Application startup: Alembic handles migrations.")
 
     # Yield control to the application
     yield
