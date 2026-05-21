@@ -61,7 +61,7 @@ class RBACService:
         )
 
         do_update_stmt = insert_stmt.on_conflict_do_update(
-            constraint='uq_role_resource',
+            index_elements=['role_id', 'resource'],
             set_={
                 "can_read": insert_stmt.excluded.can_read,
                 "can_write": insert_stmt.excluded.can_write,
