@@ -1,41 +1,27 @@
 from fastapi import HTTPException
 from starlette import status
-from farm_management_service.base_service import BaseService
-from farm_management_service.models import Farms, FarmAccess
+from farm_management_service.models import Farms
 from farm_management_service.schemas import FarmCreate
 from farm_management_service.services.access_service import AccessService
+from farm_management_service.repositories.farm_repository import FarmRepository
 from farm_management_service.enums import AccessLevel
-from sqlalchemy import select, or_
-from sqlalchemy.orm import joinedload
 from typing import Optional, Union
 from common.schemas import CurrentUser
 
 
-class FarmService(BaseService):
-    def __init__(self, db):
-        super().__init__(db)
-        self.access_service = AccessService(db)
+class FarmService:
+    def __init__(self, farm_repo: FarmRepository, access_service: AccessService):
+        self.farm_repo = farm_repo
+        self.access_service = access_service
 
-    async def create(self, farm: FarmCreate, user_id):
+    async def create(self, farm: FarmCreate, user_id: str) -> Farms:
         farm_data_dict = farm.model_dump()
         farm_data_dict["user_id"] = user_id
         farm_entity = Farms(**farm_data_dict)
-        self.db.add(farm_entity)
-        await self.db.commit()
-        return farm_entity
+        return await self.farm_repo.create(farm_entity)
 
-    async def get(self, farm_id) -> Farms:
-        query = (
-            select(Farms)
-            .filter(Farms.farm_id == farm_id)
-            .options(
-                joinedload(Farms.devices), 
-                joinedload(Farms.crop_management_entries),
-                joinedload(Farms.access_entries)
-            )
-        )
-        result = await self.db.execute(query)
-        farm_entity = result.unique().scalar_one_or_none() 
+    async def get(self, farm_id: str) -> Farms:
+        farm_entity = await self.farm_repo.get_by_id(farm_id)
         if not farm_entity:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Farm not found"
@@ -82,26 +68,12 @@ class FarmService(BaseService):
         user_id: str,
         sort_column: str,
         cursor: Optional[str] = None,
-        limit: Optional[int] = 10,
+        limit: int = 10,
     ):
-        # Query farms where User is Owner OR User is in Access List
-        query = (
-            select(Farms)
-            .outerjoin(FarmAccess, Farms.farm_id == FarmAccess.farm_id)
-            .filter(
-                or_(
-                    Farms.user_id == user_id,
-                    FarmAccess.user_id == user_id
-                )
-            )
-            .options(
-                joinedload(Farms.devices), 
-                joinedload(Farms.crop_management_entries)
-            )
-            .distinct() # Important because of join
-        )
+        return await self.farm_repo.get_all_farms(user_id, sort_column, cursor, limit)
 
-        items, next_cursor = await self.cursor_paginate(
-            self.db, query, sort_column, cursor, limit
-        )
-        return items, next_cursor
+    async def update(self, farm_entity: Farms, **kwargs) -> Farms:
+        return await self.farm_repo.update(farm_entity, **kwargs)
+
+    async def delete(self, farm_entity: Farms):
+        await self.farm_repo.delete(farm_entity)

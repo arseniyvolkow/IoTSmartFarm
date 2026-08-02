@@ -6,6 +6,7 @@ from sensor_data_service.database import Settings
 from sensor_data_service.services.redis_service import RedisService
 from sensor_data_service.services.Influxdb_service import InfluxDBService
 from sensor_data_service.services.mqtt_service import AsyncMQTTService
+import json
 
 # Clean production logging
 logging.basicConfig(
@@ -14,6 +15,51 @@ logging.basicConfig(
     stream=sys.stdout
 )
 logger = logging.getLogger(__name__)
+
+async def actuator_command_subscriber(redis_service: RedisService, mqtt_service: AsyncMQTTService):
+    """Listens to Redis 'actuator_commands' channel and forwards to MQTT."""
+    if not redis_service.client:
+        return
+    pubsub = redis_service.client.pubsub()
+    await pubsub.subscribe("actuator_commands")
+    logger.info("📡 Subscribed to Redis channel 'actuator_commands'")
+    
+    try:
+        async for message in pubsub.listen():
+            if message["type"] == "message":
+                try:
+                    payload = json.loads(message["data"])
+                    actuators = payload.get("actuators_to_control", [])
+                    for act in actuators:
+                        device_id = act.get("device_id")
+                        if not device_id:
+                            logger.warning(f"⚠️ Skipping actuator command due to missing device_id: {act}")
+                            continue
+                        
+                        topic = f"device/{device_id}/commands"
+                        # Forward as JSON to edge device
+                        mqtt_payload = json.dumps({
+                            "command": "control_actuator",
+                            "actuator_id": act.get("actuator_id"),
+                            "action": act
+                        })
+                        
+                        # 1. Update the Twin's desired state in Redis
+                        await redis_service.update_desired_state(
+                            device_id, 
+                            {act.get("actuator_id"): act}
+                        )
+                        
+                        # 2. QoS 1 guarantees at least once delivery
+                        if mqtt_service.client:
+                            await mqtt_service.client.publish(topic, payload=mqtt_payload, qos=1)
+                            logger.info(f"📤 Forwarded actuator command to MQTT and saved Twin: {topic}")
+                except Exception as e:
+                    logger.error(f"❌ Error processing actuator command: {e}")
+    except asyncio.CancelledError:
+        logger.info("Actuator command subscriber cancelled.")
+    finally:
+        await pubsub.unsubscribe("actuator_commands")
 
 async def main():
     settings = Settings()
@@ -53,6 +99,9 @@ async def main():
         # Start in 'ingestion' mode
         await mqtt_service.start(mode="ingestion")
         logger.info(f"Async MQTT Service started in INGESTION mode.")
+        
+        # Start the actuator command bridge in the background
+        bridge_task = asyncio.create_task(actuator_command_subscriber(redis_service, mqtt_service))
         
         # Keep the worker running
         while True:

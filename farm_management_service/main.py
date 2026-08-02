@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 from farm_management_service.models import Base
 from farm_management_service.database import engine
 from contextlib import asynccontextmanager
@@ -20,7 +21,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(root_path="/api/farm-management-service", lifespan=lifespan)
-
+app.mount("/firmware", StaticFiles(directory="/home/arseniy/Projects/IoTSmartFarm/firmware"), name="firmware")
 
 app.include_router(devices.router)
 app.include_router(farms.router)

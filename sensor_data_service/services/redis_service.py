@@ -148,3 +148,47 @@ class RedisService:
         except Exception as e:
             logger.error(f"Error updating Redis cache from batch: {e}")
             raise
+
+    # --- Device Twin Methods ---
+    
+    async def get_device_twin(self, device_id: str) -> Dict[str, Any]:
+        """Fetch the full device twin, or return an empty structure if not exists."""
+        if not self.client:
+            return {"desired": {}, "reported": {}}
+            
+        key = f"twin:{device_id}"
+        try:
+            data = await self.client.get(key)
+            if data:
+                return orjson.loads(data)
+        except Exception as e:
+            logger.error(f"Error getting twin for {device_id}: {e}")
+            
+        return {"desired": {}, "reported": {}}
+
+    async def _update_twin_block(self, device_id: str, block_name: str, state_dict: Dict[str, Any]):
+        """Helper to update either 'desired' or 'reported' blocks of the twin."""
+        if not self.client:
+            return
+            
+        key = f"twin:{device_id}"
+        try:
+            # We use a Redis transaction (WATCH) or just fetch, update, set.
+            # For this simple implementation, fetch-update-set is fine.
+            twin = await self.get_device_twin(device_id)
+            
+            # Merge the new state dictionary into the specified block
+            twin[block_name].update(state_dict)
+            
+            await self.client.set(key, orjson.dumps(twin).decode('utf-8'))
+            logger.debug(f"Updated twin {block_name} for {device_id}: {state_dict}")
+        except Exception as e:
+            logger.error(f"Error updating twin block {block_name} for {device_id}: {e}")
+
+    async def update_desired_state(self, device_id: str, state_dict: Dict[str, Any]):
+        """Update the desired state of actuators."""
+        await self._update_twin_block(device_id, "desired", state_dict)
+        
+    async def update_reported_state(self, device_id: str, state_dict: Dict[str, Any]):
+        """Update the reported state from the edge device."""
+        await self._update_twin_block(device_id, "reported", state_dict)

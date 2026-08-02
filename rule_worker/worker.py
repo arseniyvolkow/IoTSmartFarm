@@ -1,295 +1,35 @@
 import asyncio
-import json
 import logging
 import os
-from datetime import datetime, timedelta, timezone
-from typing import Dict, Any, Optional, List
-
 import httpx
-import rule_engine
-from sqlalchemy import select, update
-from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import joinedload
-from sqlalchemy.ext.asyncio import AsyncSession
 
-# Локальные импорты
-from rule_worker.database import get_db, engine
-from rule_worker.models import Rules, RuleTriggerType, Base
+from rule_worker.database import get_db
 from rule_worker.services.redis_service import RedisService
 from rule_worker.services.action_executor import ActionExecutor
-
-import functools
+from rule_worker.services.context_builder import RuleContextBuilder
+from rule_worker.services.evaluator import RuleEvaluator
+from rule_worker.services.stream_consumer import StreamConsumer
+from rule_worker.services.rule_cache import rule_cache
 
 logger = logging.getLogger(__name__)
 
-@functools.lru_cache(maxsize=10000)
-def _compile_rule(expression: str) -> rule_engine.Rule:
-    """
-    Compiles a rule expression into an AST. 
-    Uses an LRU cache to prevent memory exhaustion while avoiding recompilation overhead.
-    """
-    return rule_engine.Rule(expression)
-
-
-class RuleWorker:
-    """Rule evaluation engine."""
-
-    def __init__(self, redis_service: RedisService, http_client: Optional[httpx.AsyncClient] = None):
-        self.redis_service = redis_service
-        self._owns_http_client = http_client is None
-        self.http_client = http_client or httpx.AsyncClient(timeout=30.0)
-        
-        # Instantiate the ActionExecutor and pass RedisService for pub/sub decoupling
-        self.action_executor = ActionExecutor(self.redis_service)
-
-    async def close(self):
-        """Clean up resources."""
-        if self._owns_http_client:
-            await self.http_client.aclose()
-            logger.info("HTTP client closed")
-
-    def _is_rule_on_cooldown(self, rule: Rules) -> bool:
-        """Check if the rule is currently on cooldown."""
-        if not rule.last_triggered_at:
-            return False
-
-        now = datetime.now(timezone.utc)
-        
-        # Ensure last_triggered_at is offset-aware
-        last_triggered = rule.last_triggered_at
-        if last_triggered.tzinfo is None:
-            last_triggered = last_triggered.replace(tzinfo=timezone.utc)
-        else:
-            last_triggered = last_triggered.astimezone(timezone.utc)
-        
-        time_since_triggered = now - last_triggered
-        is_on_cooldown = time_since_triggered < timedelta(seconds=rule.cooldown_seconds)
-
-        if is_on_cooldown:
-            logger.debug(f"Rule '{rule.rule_name}' (ID: {rule.rule_id}) is on cooldown. Skipping.")
-        return is_on_cooldown
-
-    async def _prepare_context(self, rule: Rules, triggered_value: Optional[float] = None) -> Optional[Dict[str, Any]]:
-        """Prepare the context dictionary for rule evaluation."""
-        now = datetime.now(timezone.utc)
-        context = {
-            "rule_id": rule.rule_id,
-            "rule_name": rule.rule_name,
-            "current_time": now.isoformat(),
-        }
-
-        if rule.trigger_type == RuleTriggerType.SENSOR_THRESHOLD:
-            if not rule.sensor_id:
-                logger.warning(f"Rule '{rule.rule_name}' is missing sensor_id.")
-                return None
-            
-            value = triggered_value
-            if value is None:
-                sensor_data = await self.redis_service.get_json(rule.sensor_id)
-                if sensor_data is None:
-                    # Fallback to raw string value
-                    raw_val = await self.redis_service.get(rule.sensor_id)
-                    if raw_val is not None:
-                        try:
-                            value = float(raw_val)
-                        except ValueError:
-                            pass
-                elif isinstance(sensor_data, dict) and "value" in sensor_data:
-                    value = float(sensor_data["value"])
-                else:
-                    try:
-                        value = float(sensor_data)
-                    except (ValueError, TypeError):
-                        pass
-
-            if value is None:
-                logger.debug(f"No valid data for sensor {rule.sensor_id}. Skipping.")
-                return None
-            
-            context["value"] = value
-            context["sensor_id"] = rule.sensor_id
-
-        elif rule.trigger_type == RuleTriggerType.TIME_BASED:
-            # For time-based rules, use local time for easier rule writing (e.g., "hour == 8")
-            local_now = datetime.now()
-            context.update({
-                "hour": local_now.hour, "minute": local_now.minute, "day_of_week": local_now.weekday(),
-                "day": local_now.day, "month": local_now.month, "year": local_now.year,
-            })
-        else:
-            logger.warning(f"Unsupported trigger type for rule '{rule.rule_name}'.")
-            return None
-        
-        return context
-
-    async def _execute_matched_rule_actions(self, rule: Rules, context: Dict[str, Any], db: AsyncSession):
-        """Execute all actions for a matched rule and update its timestamp."""
-        logger.info(f"✅ Rule '{rule.rule_name}' MATCHED! Context: {context}")
-        
-        sorted_actions = sorted(rule.actions, key=lambda a: a.execution_order or 0)
-        logger.info(f"Executing {len(sorted_actions)} actions for '{rule.rule_name}'")
-        
-        for action in sorted_actions:
-            action_dict = {
-                "action_id": action.action_id,
-                "action_type": action.action_type.value if hasattr(action.action_type, 'value') else action.action_type,
-                "action_payload": action.action_payload,
-            }
-            try:
-                success = await self.action_executor.execute(action_dict, context)
-                if not success:
-                    logger.warning(f"⚠️ Action {action.action_id} failed for rule '{rule.rule_name}'.")
-            except Exception as e:
-                logger.error(f"❌ Error executing action {action.action_id}: {e}")
-
+async def run_cache_reloader(interval_seconds: int = 30):
+    """Periodically fetches rules from DB into memory."""
+    logger.info(f"🔄 Starting cache reloader (every {interval_seconds}s)")
+    while True:
         try:
-            stmt = update(Rules).where(Rules.rule_id == rule.rule_id).values(last_triggered_at=datetime.now(timezone.utc))
-            await db.execute(stmt)
-            await db.commit()
-            logger.info(f"📝 Rule '{rule.rule_name}' last_triggered_at updated.")
-        except SQLAlchemyError as e:
-            logger.error(f"Failed to update last_triggered_at for rule {rule.rule_id}: {e}")
-            await db.rollback()
-
-    async def evaluate_single_rule(self, rule: Rules, db_session: AsyncSession, triggered_value: Optional[float] = None) -> bool:
-        """Evaluate a single rule."""
-        if self._is_rule_on_cooldown(rule):
-            return False
-
-        try:
-            context = await self._prepare_context(rule, triggered_value=triggered_value)
-            if context is None:
-                return False
-
-            rule_engine_obj = _compile_rule(rule.rule_expression)
-            
-            if rule_engine_obj.matches(context):
-                await self._execute_matched_rule_actions(rule, context, db_session)
-                return True
-
-            logger.debug(f"Rule '{rule.rule_name}' (ID: {rule.rule_id}) did not match.")
-            return False
-            
-        except rule_engine.errors.RuleSyntaxError as e:
-            logger.error(f"❌ Rule '{rule.rule_name}' (ID: {rule.rule_id}) syntax error: {e}")
+            await rule_cache.reload_rules()
         except Exception as e:
-            logger.error(f"❌ Error evaluating rule '{rule.rule_name}' (ID: {rule.rule_id}): {e}", exc_info=True)
-        
-        return False
+            logger.error(f"Error in cache reloader task: {e}")
+        await asyncio.sleep(interval_seconds)
 
-    async def evaluate_all_rules(self, db_session: AsyncSession, trigger_type: Optional[RuleTriggerType] = None):
-        """Evaluate all active rules, optionally filtered by trigger type."""
-        try:
-            query = select(Rules).options(joinedload(Rules.actions)).where(Rules.is_active == True)
-            if trigger_type:
-                query = query.where(Rules.trigger_type == trigger_type)
-            
-            result = await db_session.execute(query)
-            rules = result.scalars().unique().all()
-
-            if not rules:
-                return
-
-            logger.info(f"📋 Evaluating {len(rules)} active rules (type: {trigger_type or 'all'})")
-            
-            tasks = [self.evaluate_single_rule(rule, db_session) for rule in rules]
-            await asyncio.gather(*tasks, return_exceptions=True)
-
-        except Exception as e:
-            logger.error(f"❌ Error in evaluation cycle: {e}", exc_info=True)
-
-    async def evaluate_rules_for_sensor(self, sensor_id: str, value: float, db_session: AsyncSession):
-        """Evaluate only rules associated with a specific sensor."""
-        try:
-            query = (
-                select(Rules)
-                .options(joinedload(Rules.actions))
-                .where(Rules.is_active == True)
-                .where(Rules.trigger_type == RuleTriggerType.SENSOR_THRESHOLD)
-                .where(Rules.sensor_id == sensor_id)
-            )
-            
-            result = await db_session.execute(query)
-            rules = result.scalars().unique().all()
-
-            if not rules:
-                return
-
-            logger.info(f"🎯 Evaluating {len(rules)} rules for updated sensor: {sensor_id} (value: {value})")
-            
-            tasks = [self.evaluate_single_rule(rule, db_session, triggered_value=value) for rule in rules]
-            await asyncio.gather(*tasks, return_exceptions=True)
-
-        except Exception as e:
-            logger.error(f"❌ Error evaluating rules for sensor {sensor_id}: {e}", exc_info=True)
-
-    async def listen_for_sensor_updates(self):
-        """Listen to Redis Streams for real-time sensor updates."""
-        logger.info("📡 Starting real-time sensor update stream listener...")
-        
-        stream_name = "sensor_updates"
-        group_name = "rule_workers_group"
-        consumer_name = f"worker_{os.getpid()}"
-
-        await self.redis_service.ensure_consumer_group(stream_name, group_name)
-        
-        while True:
-            try:
-                # Read from the stream
-                messages = await self.redis_service.read_stream_group(
-                    stream_name=stream_name, 
-                    group_name=group_name, 
-                    consumer_name=consumer_name, 
-                    count=10, 
-                    block=2000
-                )
-
-                if not messages:
-                    continue
-
-                for stream, msg_list in messages:
-                    for message_id, msg_data in msg_list:
-                        try:
-                            # msg_data might be like: {"data": '{"sensor_id": "...", "value": 25.5}'}
-                            raw_payload = msg_data.get("data")
-                            if raw_payload:
-                                logger.info(f"📩 Received sensor update stream msg: {raw_payload}")
-                                data = json.loads(raw_payload)
-                                sensor_id = data.get("sensor_id")
-                                value = data.get("value")
-                                
-                                if sensor_id is not None and value is not None:
-                                    try:
-                                        val_float = float(value)
-                                        async with get_db() as db_session:
-                                            await self.evaluate_rules_for_sensor(sensor_id, val_float, db_session)
-                                    except ValueError:
-                                        logger.warning(f"Received non-numeric value for sensor {sensor_id}: {value}")
-                            
-                            # Acknowledge the message so it's removed from PEL
-                            await self.redis_service.ack_message(stream_name, group_name, message_id)
-
-                        except json.JSONDecodeError:
-                            logger.error(f"Failed to decode sensor update message: {msg_data}")
-                            # ACK invalid messages to avoid getting stuck
-                            await self.redis_service.ack_message(stream_name, group_name, message_id)
-                        except Exception as e:
-                            logger.error(f"Error processing sensor update: {e}", exc_info=True)
-            
-            except Exception as e:
-                logger.error(f"❌ Error in Stream listener: {e}", exc_info=True)
-                await asyncio.sleep(5)
-
-async def run_periodic_evaluation(rule_worker: RuleWorker, interval_seconds: int):
+async def run_periodic_evaluation(evaluator: RuleEvaluator, interval_seconds: int):
     """Run periodic evaluation for time-based rules."""
     logger.info(f"🔄 Starting periodic evaluation (every {interval_seconds}s)")
     while True:
         try:
             async with get_db() as db_session:
-                # We mainly care about TIME_BASED rules in the periodic cycle now,
-                # as SENSOR_THRESHOLD rules are handled by Pub/Sub.
-                # However, we can still check all rules periodically as a fallback.
-                await rule_worker.evaluate_all_rules(db_session)
+                await evaluator.evaluate_all_rules(db_session)
             
             await asyncio.sleep(interval_seconds)
         except Exception as e:
@@ -303,7 +43,7 @@ async def run_rule_worker_daemon(interval_seconds: int = 60):
     logger.info(f"🚀 Starting rule worker daemon")
 
     redis_service = None
-    rule_worker = None
+    http_client = None
 
     try:
         # 1. Initialize Redis Service
@@ -317,14 +57,25 @@ async def run_rule_worker_daemon(interval_seconds: int = 60):
         await redis_service.connect()
         logger.info("✅ Redis connected successfully")
 
-        # 2. Create RuleWorker
-        rule_worker = RuleWorker(redis_service=redis_service)
-        logger.info("✅ RuleWorker initialized")
+        # Create HTTP Client if needed by other services
+        http_client = httpx.AsyncClient(timeout=30.0)
 
-        # 3. Start concurrent tasks
+        # 2. Initialize Components
+        action_executor = ActionExecutor(redis_service)
+        context_builder = RuleContextBuilder(redis_service)
+        evaluator = RuleEvaluator(action_executor, context_builder)
+        stream_consumer = StreamConsumer(redis_service, evaluator)
+        
+        logger.info("✅ RuleWorker components initialized")
+
+        # 3. Initial load of the cache
+        await rule_cache.reload_rules()
+
+        # 4. Start concurrent tasks
         tasks = [
-            asyncio.create_task(run_periodic_evaluation(rule_worker, interval_seconds)),
-            asyncio.create_task(rule_worker.listen_for_sensor_updates())
+            asyncio.create_task(run_periodic_evaluation(evaluator, interval_seconds)),
+            asyncio.create_task(stream_consumer.listen_for_sensor_updates()),
+            asyncio.create_task(run_cache_reloader(30))
         ]
 
         await asyncio.gather(*tasks)
@@ -337,8 +88,9 @@ async def run_rule_worker_daemon(interval_seconds: int = 60):
 
     finally:
         logger.info("\n🧹 Starting cleanup...")
-        if rule_worker:
-            await rule_worker.close()
+        if http_client:
+            await http_client.aclose()
+            logger.info("HTTP client closed")
         if redis_service:
             await redis_service.disconnect()
         logger.info("👋 Rule worker daemon shut down complete")

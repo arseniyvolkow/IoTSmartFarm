@@ -1,86 +1,56 @@
-from fastapi import HTTPException, status
-from sqlalchemy import select, delete
-from sqlalchemy.ext.asyncio import AsyncSession
-from farm_management_service.models import FarmAccess, Farms
+from fastapi import HTTPException
 from farm_management_service.schemas import FarmAccessCreate
 from farm_management_service.enums import AccessLevel
+from farm_management_service.repositories.access_repository import AccessRepository
 
 class AccessService:
-    def __init__(self, db: AsyncSession):
-        self.db = db
+    def __init__(self, access_repo: AccessRepository):
+        self.access_repo = access_repo
 
     async def grant_access(self, farm_id: str, access_data: FarmAccessCreate, grantor_id: str):
         # 1. Verify grantor is the OWNER of the farm
-        farm_query = select(Farms).filter(Farms.farm_id == farm_id)
-        result = await self.db.execute(farm_query)
-        farm = result.scalar_one_or_none()
+        owner_id = await self.access_repo.get_farm_owner(farm_id)
 
-        if not farm:
+        if not owner_id:
             raise HTTPException(status_code=404, detail="Farm not found")
 
-        if farm.user_id != grantor_id:
+        if owner_id != grantor_id:
             raise HTTPException(
                 status_code=403, 
                 detail="Only the farm owner can grant access"
             )
 
         # 2. Check if access already exists
-        existing_access_query = select(FarmAccess).filter(
-            FarmAccess.farm_id == farm_id,
-            FarmAccess.user_id == access_data.user_id
-        )
-        existing_result = await self.db.execute(existing_access_query)
-        existing_access = existing_result.scalar_one_or_none()
+        existing_access = await self.access_repo.get_access_entry(farm_id, access_data.user_id)
 
         if existing_access:
             # Update existing access
-            existing_access.access_level = access_data.access_level
-            await self.db.commit()
-            await self.db.refresh(existing_access)
-            return existing_access
+            return await self.access_repo.update_access(existing_access, access_data.access_level)
 
         # 3. Create new access entry
-        new_access = FarmAccess(
-            farm_id=farm_id,
-            user_id=access_data.user_id,
-            access_level=access_data.access_level
-        )
-        self.db.add(new_access)
-        await self.db.commit()
-        await self.db.refresh(new_access)
-        return new_access
+        return await self.access_repo.create_access(farm_id, access_data.user_id, access_data.access_level)
 
     async def revoke_access(self, farm_id: str, target_user_id: str, requestor_id: str):
         # 1. Verify requestor is OWNER
-        farm_query = select(Farms).filter(Farms.farm_id == farm_id)
-        result = await self.db.execute(farm_query)
-        farm = result.scalar_one_or_none()
+        owner_id = await self.access_repo.get_farm_owner(farm_id)
 
-        if not farm:
+        if not owner_id:
             raise HTTPException(status_code=404, detail="Farm not found")
 
-        if farm.user_id != requestor_id:
+        if owner_id != requestor_id:
             raise HTTPException(
                 status_code=403, 
                 detail="Only the farm owner can revoke access"
             )
 
         # 2. Delete access entry
-        query = delete(FarmAccess).filter(
-            FarmAccess.farm_id == farm_id,
-            FarmAccess.user_id == target_user_id
-        )
-        result = await self.db.execute(query)
+        rowcount = await self.access_repo.delete_access(farm_id, target_user_id)
         
-        if result.rowcount == 0:
+        if rowcount == 0:
             raise HTTPException(status_code=404, detail="Access entry not found")
-            
-        await self.db.commit()
 
     async def list_access(self, farm_id: str, requestor_id: str):
         # 1. Verify requestor is OWNER (or maybe allow ADMIN/READ access users to see who else is there?)
-        # For now, let's stick to Owner only or explicit ADMIN access.
-        
         # Check permissions (Owner OR Admin Access)
         has_perm = await self.has_access(farm_id, requestor_id, AccessLevel.ADMIN)
         if not has_perm:
@@ -89,29 +59,20 @@ class AccessService:
                 detail="Not enough permissions to view access list"
             )
 
-        query = select(FarmAccess).filter(FarmAccess.farm_id == farm_id)
-        result = await self.db.execute(query)
-        return result.scalars().all()
+        return await self.access_repo.get_all_access_for_farm(farm_id)
 
     async def has_access(self, farm_id: str, user_id: str, required_level: AccessLevel) -> bool:
         # 1. Check if Owner
-        farm_query = select(Farms).filter(Farms.farm_id == farm_id)
-        result = await self.db.execute(farm_query)
-        farm = result.scalar_one_or_none()
+        owner_id = await self.access_repo.get_farm_owner(farm_id)
         
-        if not farm:
-            return False # Or raise 404? Logic depends on usage context.
+        if not owner_id:
+            return False
             
-        if farm.user_id == user_id:
+        if owner_id == user_id:
             return True # Owner has all permissions
 
         # 2. Check Access Table
-        access_query = select(FarmAccess).filter(
-            FarmAccess.farm_id == farm_id,
-            FarmAccess.user_id == user_id
-        )
-        access_result = await self.db.execute(access_query)
-        access_entry = access_result.scalar_one_or_none()
+        access_entry = await self.access_repo.get_access_entry(farm_id, user_id)
 
         if not access_entry:
             return False

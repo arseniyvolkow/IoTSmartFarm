@@ -51,6 +51,8 @@ services:
       postgres:
         condition: service_healthy
     env_file: ".env"
+    volumes:
+      - "./firmware:/home/arseniy/Projects/IoTSmartFarm/firmware"
     restart: unless-stopped
     networks:
       - app-network
@@ -256,7 +258,7 @@ services:
       POSTGRES_RULE_DATABASE_PASSWORD: ${POSTGRES_RULE_DATABASE_PASSWORD}
       POSTGRES_RULE_DATABASE_NAME: ${POSTGRES_RULE_DATABASE_NAME}
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres -h localhost"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER_DATABASE_USERNAME} -d $${POSTGRES_USER_DATABASE_NAME}"]
       interval: 10s
       timeout: 5s
       retries: 5

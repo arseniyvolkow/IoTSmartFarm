@@ -1,7 +1,7 @@
 import json
 import logging
 from typing import Dict, Any, Callable, Awaitable, Optional
-from rule_worker.enums import RuleActionType
+from common.rule_enums import RuleActionType
 from rule_worker.services.redis_service import RedisService
 
 logger = logging.getLogger(__name__)
@@ -15,7 +15,7 @@ class ActionExecutor:
     def __init__(self, redis_service: RedisService):
         self.redis_service = redis_service
         
-        # Mapping RuleActionType (from rule_worker.enums) to handler methods
+        # Mapping RuleActionType (from common.rule_enums) to handler methods
         self._handlers: Dict[str, Callable[[Dict[str, Any]], Awaitable[bool]]] = {
             RuleActionType.CONTROL_DEVICE.value: self._execute_device_control,
             RuleActionType.SEND_NOTIFICATION.value: self._execute_notification_placeholder,

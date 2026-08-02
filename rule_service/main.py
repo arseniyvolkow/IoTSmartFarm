@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from rule_service.models import Base
+from common.rule_models import Base
 from rule_service.database import engine
 from contextlib import asynccontextmanager
 from rule_service.routers import rules

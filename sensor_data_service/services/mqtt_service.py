@@ -43,8 +43,9 @@ class AsyncMQTTService:
         self.mode = "all"
         
         # Async queues for decoupling producers from consumers
-        self._publish_queue = asyncio.Queue()
-        self._incoming_queue = asyncio.Queue()
+        # Using bounded queues to provide backpressure and prevent OOM (Exit 137) during stress tests
+        self._publish_queue = asyncio.Queue(maxsize=10000)
+        self._incoming_queue = asyncio.Queue(maxsize=50000)
         
         # Internal tasks
         self._tasks: List[asyncio.Task] = []
@@ -113,11 +114,17 @@ class AsyncMQTTService:
                     if self.mode in ["all", "ingestion"]:
                         # Subscribe only if we are an ingestion worker
                         await client.subscribe("device/+/data")
+                        await client.subscribe("device/+/twin/#")
                         async for message in client.messages:
                             if not self._running:
                                 break
-                            # Push to queue immediately to free up the network loop
-                            await self._incoming_queue.put(message)
+                            topic_str = message.topic.value
+                            if "/twin/" in topic_str:
+                                # Process twin messages asynchronously, don't batch them
+                                asyncio.create_task(self._handle_twin_message(message))
+                            else:
+                                # Push to queue immediately to free up the network loop
+                                await self._incoming_queue.put(message)
                     else:
                         # In API mode, just keep the connection alive for publishing
                         while self._running:
@@ -132,6 +139,33 @@ class AsyncMQTTService:
 
             if self._running:
                 await asyncio.sleep(self.reconnect_interval)
+
+    async def _handle_twin_message(self, message: aiomqtt.Message):
+        """Processes twin/get and twin/reported messages independently from batching."""
+        try:
+            topic = message.topic.value
+            parts = topic.split('/')
+            if len(parts) < 4:
+                return
+                
+            device_id = parts[1]
+            twin_action = parts[3]
+            
+            if twin_action == "get":
+                # Fetch twin from Redis and reply
+                twin_data = await self.redis_service.get_device_twin(device_id)
+                reply_topic = f"device/{device_id}/twin"
+                await self.publish(reply_topic, orjson.dumps(twin_data).decode('utf-8'))
+                logger.debug(f"Replied to twin/get for {device_id}")
+                
+            elif twin_action == "reported":
+                # Update reported state in Redis
+                payload = orjson.loads(message.payload)
+                await self.redis_service.update_reported_state(device_id, payload)
+                logger.debug(f"Updated twin reported state for {device_id}")
+                
+        except Exception as e:
+            logger.error(f"Error handling twin message: {e}")
 
     async def _batch_worker(self):
         """Assembles small messages into large batches for database efficiency."""

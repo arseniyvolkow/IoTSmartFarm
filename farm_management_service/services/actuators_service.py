@@ -1,24 +1,17 @@
-from farm_management_service.models import Actuators, Devices, FarmAccess
-from farm_management_service.base_service import BaseService
-from sqlalchemy.orm import joinedload
-from sqlalchemy import select, update, or_
+from farm_management_service.models import Actuators
 from typing import List, Optional, Union
 from farm_management_service.schemas import ActuatorRead, ActuatorBase
-from fastapi import HTTPException, status, Depends
-from sqlalchemy.ext.asyncio import AsyncSession
-from farm_management_service.database import get_db
+from fastapi import HTTPException, status
 from farm_management_service.services.access_service import AccessService
+from farm_management_service.repositories.actuator_repository import ActuatorRepository
 from farm_management_service.enums import AccessLevel
 from common.schemas import CurrentUser
 
 
-class ActuatorService(BaseService):
-    def __init__(
-        self,
-        db: AsyncSession = Depends(get_db),
-    ):
-        super().__init__(db)
-        self.access_service = AccessService(db)
+class ActuatorService:
+    def __init__(self, actuator_repo: ActuatorRepository, access_service: AccessService):
+        self.actuator_repo = actuator_repo
+        self.access_service = access_service
 
     async def check_access(self, entity, user: Union[CurrentUser, str], required_level: AccessLevel = AccessLevel.READ):
         user_id = user
@@ -33,7 +26,7 @@ class ActuatorService(BaseService):
                 return # Admin Read
 
         # 2. Direct Ownership (Actuator)
-        if entity.user_id == user_id:
+        if getattr(entity, "user_id", None) == user_id:
             return
             
         # 3. Device Ownership
@@ -51,35 +44,11 @@ class ActuatorService(BaseService):
             status_code=status.HTTP_403_FORBIDDEN, detail="Access denied!"
         )
 
-    def add_actuators_to_session(
-        self, device_id: str, actuators_list: List[ActuatorBase]
-    ):
-        """
-        Creates actuator ORM objects and stages them for insertion using db.add_all().
-        This method does NOT commit the transaction, leaving it to the calling service.
-        """
-        if not actuators_list:
-            return
-
-        actuator_entities = [
-            Actuators(
-                device_id=device_id,
-                actuator_type=actuator.actuator_type,
-                available_states=actuator.available_states,
-            )
-            for actuator in actuators_list
-        ]
-        # Use the ORM's add_all for consistency.
-        self.db.add_all(actuator_entities)
+    def add_actuators_to_session(self, device_id: str, actuators_list: List[ActuatorBase]):
+        self.actuator_repo.add_actuators_to_session(device_id, actuators_list)
 
     async def get(self, actuator_id: str) -> Actuators:
-        query = (
-            select(Actuators)
-            .filter(Actuators.actuator_id == actuator_id)
-            .options(joinedload(Actuators.device))
-        )
-        result = await self.db.execute(query)
-        actuator = result.scalar_one_or_none()
+        actuator = await self.actuator_repo.get_by_id(actuator_id)
         if not actuator:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Actuator not found"
@@ -87,39 +56,21 @@ class ActuatorService(BaseService):
         return actuator
 
     async def get_all_actuators(
-    self,
-    user_id: str,
-    sort_column: str,
-    cursor: Optional[str] = None,
-    limit: Optional[int] = 10,
+        self,
+        user_id: str,
+        sort_column: str,
+        cursor: Optional[str] = None,
+        limit: Optional[int] = 10,
     ) -> tuple[list[ActuatorRead], Optional[str]]:
-        query = (
-            select(Actuators)
-            .join(Devices, Actuators.device_id == Devices.device_id)
-            .outerjoin(FarmAccess, Devices.farm_id == FarmAccess.farm_id)
-            .filter(
-                or_(
-                    Devices.user_id == user_id,
-                    Actuators.user_id == user_id,
-                    FarmAccess.user_id == user_id
-                )
-            )
-            .distinct()
-        )
-        items, next_cursor = await self.cursor_paginate(
-            self.db, query, sort_column, cursor, limit
-        )
+        items, next_cursor = await self.actuator_repo.get_all_actuators(user_id, sort_column, cursor, limit)
         pydantic_items = [ActuatorRead.model_validate(item) for item in items]
         return pydantic_items, next_cursor
 
-    
     async def assign_user_to_device_actuators(self, device_id: str, user_id: str):
-    # Update all actuators for this device
-        query = (
-            update(Actuators)
-            .where(Actuators.device_id == device_id)
-            .values(user_id=user_id)
-        )
+        await self.actuator_repo.assign_user_to_device_actuators(device_id, user_id)
 
-        await self.db.execute(query)
-        await self.db.commit()
+    async def update(self, actuator_entity: Actuators, **kwargs) -> Actuators:
+        return await self.actuator_repo.update(actuator_entity, **kwargs)
+
+    async def delete(self, actuator_entity: Actuators):
+        await self.actuator_repo.delete(actuator_entity)

@@ -6,7 +6,7 @@ from datetime import datetime
 from sqlalchemy.types import DateTime
 
 
-class BaseService(abc.ABC):
+class BaseRepository(abc.ABC):
     def __init__(self, db: AsyncSession):
         self.db = db
 

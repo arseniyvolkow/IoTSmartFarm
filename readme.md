@@ -54,10 +54,10 @@ graph TD
 ### Core Services
 
 1. **User Service**: Handles Authentication (JWT), RBAC, and Async hashing.
-2. **Farm Management Service**: Manages relational data for farms, devices, and sensors.
+2. **Farm Management Service**: Manages relational data for farms, devices, and sensors. Now supports **Zero-Touch Provisioning (ZTP)** and **Over-The-Air (OTA)** firmware updates over MQTT.
 3. **Sensor Data API**: Serves real-time and historical data with Redis session and query caching.
-4. **Sensor Ingestion Worker**: **(New)** Standalone service dedicated to parsing and saving the high-volume MQTT sensor data firehose.
-5. **Rule Service & Worker**: Real-time automation and rule evaluation engine.
+4. **Sensor Ingestion Worker**: Standalone service dedicated to parsing and saving the high-volume MQTT sensor data firehose. Now includes an **Actuator Command Bridge** and a robust **Device Twin** synchronization engine for state persistence.
+5. **Rule Service & Worker**: Real-time automation and rule evaluation engine. Recently optimized with a blazingly fast in-memory sensor state cache updated via Redis Pub/Sub.
 
 ---
 

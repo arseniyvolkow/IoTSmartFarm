@@ -1,25 +1,18 @@
-import rule_engine
-from rule_service.base_service import BaseService
-from rule_service.models import Rules, RuleActions
-from sqlalchemy import select
-from sqlalchemy.orm import joinedload
+from common.rule_models import Rules, RuleActions
 from typing import Optional
-from fastapi import HTTPException
+from fastapi import HTTPException, status
 from rule_service.schemas import RuleCreate
-from fastapi import status
-from rule_service.enums import RuleTriggerType
+from rule_service.repositories.rule_repository import RuleRepository
+from rule_service.services.rule_validator import RuleValidator
 
-class RulesService(BaseService):
+class RulesService:
+    def __init__(self, rule_repo: RuleRepository, rule_validator: RuleValidator):
+        self.rule_repo = rule_repo
+        self.rule_validator = rule_validator
 
-    async def create(self, rule: RuleCreate, user_id):
+    async def create(self, rule: RuleCreate, user_id: str):
         # 1. Validate rule_expression
-        try:
-            rule_engine.Rule(rule.rule_expression)
-        except rule_engine.errors.RuleSyntaxError as e:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid rule expression: {str(e)}"
-            )
+        self.rule_validator.validate_expression(rule.rule_expression)
 
         # 2. Create the Rules entity
         rule_entity = Rules(
@@ -37,39 +30,34 @@ class RulesService(BaseService):
 
         # 3. Prepare and add RuleActions entities
         rule_actions = []
+        from common.rule_enums import RuleActionType
+        
         for action_data in rule.actions:
+            action_payload = action_data.action_payload.model_dump()
+            
+            # Inject device_id if this is a CONTROL_DEVICE action
+            if action_data.action_type == RuleActionType.CONTROL_DEVICE:
+                actuators = action_payload.get("actuators_to_control", [])
+                for act in actuators:
+                    if "actuator_id" in act and "device_id" not in act:
+                        device_id = await self.rule_repo.get_device_id_for_actuator(act["actuator_id"])
+                        if device_id:
+                            act["device_id"] = device_id
+                            
             action_entity = RuleActions(
                 action_type=action_data.action_type,
-                action_payload=action_data.action_payload.model_dump(),  # Use model_dump() to convert Pydantic model to dict
+                action_payload=action_payload,
                 execution_order=action_data.execution_order,
-                # rule_id is not explicitly set here; SQLAlchemy handles this via the relationship
             )
             rule_actions.append(action_entity)
 
-        # 4. Assign the list of RuleActions entities to the 'actions' relationship attribute
-        # SQLAlchemy will correctly link these actions to the rule_entity upon commit
         rule_entity.actions = rule_actions
 
-        # 5. Add the parent entity (Rules) to the session
-        self.db.add(rule_entity)
+        # 4. Delegate to repository to save
+        return await self.rule_repo.create(rule_entity)
 
-        # 6. Commit the transaction
-        # Both the rule and all associated actions are saved to the database
-        await self.db.commit()
-
-        # 7. Refresh the entity to ensure all generated fields (like action_id) are loaded
-        await self.db.refresh(rule_entity)
-
-        return rule_entity
-
-    async def get(self, rule_id) -> Rules:
-        query = (
-            select(Rules)
-            .filter(Rules.rule_id == rule_id)
-            .options(joinedload(Rules.actions))
-        )
-        result = await self.db.execute(query)
-        rule_entity = result.scalar_one_or_none()
+    async def get(self, rule_id: str) -> Rules:
+        rule_entity = await self.rule_repo.get_by_id(rule_id)
         if not rule_entity:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Rule not found"
@@ -78,7 +66,7 @@ class RulesService(BaseService):
 
     async def get_all(
         self,
-        user_id,
+        user_id: str,
         sort_column: str,
         farm_id: Optional[str] = None,
         sensor_id: Optional[str] = None,
@@ -86,30 +74,17 @@ class RulesService(BaseService):
         cursor: Optional[str] = None,
         limit: Optional[int] = 10,
     ):
-        # 1. Start the query and filter by user_id
-        query = select(Rules).filter(Rules.user_id == user_id)
-        
-        # 2. Eager-load the 'actions' relationship
-        # This executes a JOIN in the database query to fetch the rule and all its actions simultaneously.
-        query = query.options(joinedload(Rules.actions))
-        
-        # 3. Apply optional filters
-        if farm_id:
-            query = query.filter(Rules.farm_id == farm_id)
-        if sensor_id:
-            query = query.filter(Rules.sensor_id == sensor_id)
-        # Note: We must compare RuleTriggerType enum to RuleTriggerType enum
-        if trigger_type:
-            # Assuming trigger_type is a string that needs conversion to the Enum type
-            try:
-                trigger_enum = RuleTriggerType(trigger_type)
-                query = query.filter(Rules.trigger_type == trigger_enum)
-            except ValueError:
-                # Handle case where the provided trigger_type string is invalid, or just ignore the filter
-                pass
-
-
-        items, next_cursor = await self.cursor_paginate(
-            self.db, query, sort_column, cursor, limit
+        items, next_cursor = await self.rule_repo.get_all(
+            user_id, sort_column, farm_id, sensor_id, trigger_type, cursor, limit
         )
         return items, next_cursor
+
+    async def check_access(self, entity: Rules, user_id: str):
+        # Delegate to base repository check
+        await self.rule_repo.check_access(entity, user_id)
+
+    async def update(self, rule_entity: Rules, **kwargs):
+        await self.rule_repo.update(rule_entity, **kwargs)
+
+    async def delete(self, rule_entity: Rules):
+        await self.rule_repo.delete(rule_entity)

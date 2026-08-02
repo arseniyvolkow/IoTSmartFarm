@@ -1,24 +1,18 @@
-from fastapi import HTTPException, Depends
+from fastapi import HTTPException
 from starlette import status
-from farm_management_service.base_service import BaseService
 from farm_management_service.models import CropManagement
-from sqlalchemy import select
 from farm_management_service.schemas import CropManagmentCreate
-from sqlalchemy.ext.asyncio import AsyncSession
-from farm_management_service.database import get_db
 from farm_management_service.services.access_service import AccessService
+from farm_management_service.repositories.crop_repository import CropRepository
 from farm_management_service.enums import AccessLevel
 from typing import Union
 from common.schemas import CurrentUser
 
 
-class CropService(BaseService):
-    def __init__(
-        self,
-        db: AsyncSession = Depends(get_db),
-    ):
-        super().__init__(db)
-        self.access_service = AccessService(db)
+class CropService:
+    def __init__(self, crop_repo: CropRepository, access_service: AccessService):
+        self.crop_repo = crop_repo
+        self.access_service = access_service
 
     async def check_access(self, entity, user: Union[CurrentUser, str], required_level: AccessLevel = AccessLevel.READ):
         user_id = user
@@ -47,9 +41,7 @@ class CropService(BaseService):
         )
 
     async def get(self, crop_id):
-        query = select(CropManagement).filter(CropManagement.crop_id == crop_id)
-        result = await self.db.execute(query)
-        crop_entity = result.scalar_one_or_none()
+        crop_entity = await self.crop_repo.get_by_id(crop_id)
         if not crop_entity:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Crop not found"
@@ -60,12 +52,14 @@ class CropService(BaseService):
         crop_data_dict = crop.model_dump()
         crop_data_dict["user_id"] = user_id
         crop_entity = CropManagement(**crop_data_dict)
-        self.db.add(crop_entity)
-        await self.db.commit()
-        return crop_entity
+        return await self.crop_repo.create(crop_entity)
 
     async def assign_crop_to_farm(self, farm_entity, crop_entity):
         # FIX: Assign the farm ID to the CROP, not the other way around
-        crop_entity.farm_id = farm_entity.farm_id
-        await self.db.commit()
-        return crop_entity
+        return await self.crop_repo.update(crop_entity, farm_id=farm_entity.farm_id)
+
+    async def update(self, crop_entity: CropManagement, **kwargs) -> CropManagement:
+        return await self.crop_repo.update(crop_entity, **kwargs)
+
+    async def delete(self, crop_entity: CropManagement):
+        await self.crop_repo.delete(crop_entity)

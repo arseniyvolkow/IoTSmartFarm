@@ -7,7 +7,7 @@ from sqlalchemy.types import DateTime
 from common.schemas import CurrentUser
 
 
-class BaseService(abc.ABC):
+class BaseRepository(abc.ABC):
     def __init__(self, db: AsyncSession):
         self.db = db
 

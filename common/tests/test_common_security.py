@@ -54,8 +54,10 @@ async def test_get_token_payload_blacklisted():
 @pytest.mark.asyncio
 async def test_get_token_payload_invalid_token():
     # Тест на передачу некорректной строки вместо токена
-    with pytest.raises(HTTPException) as exc:
-        await get_token_payload("invalid-token-string")
+    with patch("common.security.redis_client", new_callable=AsyncMock) as mock_redis:
+        mock_redis.get.return_value = None  # Cache miss
+        with pytest.raises(HTTPException) as exc:
+            await get_token_payload("invalid-token-string")
     
     assert exc.value.status_code == status.HTTP_401_UNAUTHORIZED
     assert "Could not validate credentials" in exc.value.detail

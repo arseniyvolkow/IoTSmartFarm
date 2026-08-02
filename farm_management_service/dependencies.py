@@ -11,37 +11,43 @@ from farm_management_service.services.farm_service import FarmService
 from farm_management_service.services.sensor_service import SensorService
 from farm_management_service.services.access_service import AccessService
 
+from farm_management_service.repositories.actuator_repository import ActuatorRepository
+from farm_management_service.repositories.crop_repository import CropRepository
+from farm_management_service.repositories.device_repository import DeviceRepository
+from farm_management_service.repositories.farm_repository import FarmRepository
+from farm_management_service.repositories.sensor_repository import SensorRepository
+from farm_management_service.repositories.access_repository import AccessRepository
+
 db_dependency = Annotated[AsyncSession, Depends(get_db)]
 
-async def get_actuator_service(db: db_dependency) -> ActuatorService:
-    return ActuatorService(db)
+def get_access_service(db: db_dependency) -> AccessService:
+    repo = AccessRepository(db)
+    return AccessService(repo)
 
-async def get_access_service(db: db_dependency) -> AccessService:
-    return AccessService(db)
+def get_actuator_service(db: db_dependency, access_service: AccessService = Depends(get_access_service)) -> ActuatorService:
+    repo = ActuatorRepository(db)
+    return ActuatorService(repo, access_service)
 
-async def get_crop_service(db: db_dependency) -> CropService:
-    return CropService(db)
+def get_crop_service(db: db_dependency, access_service: AccessService = Depends(get_access_service)) -> CropService:
+    repo = CropRepository(db)
+    return CropService(repo, access_service)
 
+def get_device_service(db: db_dependency, access_service: AccessService = Depends(get_access_service)) -> DeviceService:
+    device_repo = DeviceRepository(db)
+    sensor_repo = SensorRepository(db)
+    actuator_repo = ActuatorRepository(db)
+    return DeviceService(device_repo, sensor_repo, actuator_repo, access_service)
 
-async def get_device_service(db: db_dependency) -> DeviceService:
-    return DeviceService(db)
+def get_farm_service(db: db_dependency, access_service: AccessService = Depends(get_access_service)) -> FarmService:
+    repo = FarmRepository(db)
+    return FarmService(repo, access_service)
 
-async def get_farm_service(db: db_dependency) -> FarmService:
-    return FarmService(db)
-
-
-async def get_sensor_service(db: db_dependency) -> SensorService:
-    return SensorService(db)
-
-
-
+def get_sensor_service(db: db_dependency, access_service: AccessService = Depends(get_access_service)) -> SensorService:
+    repo = SensorRepository(db)
+    return SensorService(repo, access_service)
 
 CurrentUserDependency = Annotated[CurrentUser, Depends(get_current_user_identity)]
-
 DeviceServiceDependency = Annotated[DeviceService, Depends(get_device_service)]
-
 CropServiceDependency = Annotated[CropService, Depends(get_crop_service)]
-
 FarmServiceDependency = Annotated[FarmService, Depends(get_farm_service)]
-
 SensorServiceDependency = Annotated[SensorService, Depends(get_sensor_service)]
