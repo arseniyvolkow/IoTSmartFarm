@@ -25,7 +25,7 @@ class AsyncMQTTService:
         password: str,
         influx_service,
         redis_service,
-        client_id: str = None,
+        client_id: str | None = None,
         keepalive: int = 60,
         reconnect_interval: int = 5,
     ):

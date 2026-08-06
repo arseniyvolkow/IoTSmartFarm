@@ -53,9 +53,9 @@ async def test_run_rule_worker_daemon():
             mock_httpx.return_value = mock_client
 
             with (
-                patch("rule_worker.worker.ActionExecutor") as mock_action,
-                patch("rule_worker.worker.RuleContextBuilder") as mock_builder,
-                patch("rule_worker.worker.RuleEvaluator") as mock_evaluator,
+                patch("rule_worker.worker.ActionExecutor"),
+                patch("rule_worker.worker.RuleContextBuilder"),
+                patch("rule_worker.worker.RuleEvaluator"),
                 patch("rule_worker.worker.StreamConsumer") as mock_stream,
                 patch(
                     "rule_worker.worker.rule_cache.reload_rules", new_callable=AsyncMock

@@ -132,9 +132,8 @@ class RuleEvaluator:
                 f"❌ Rule '{rule.rule_name}' (ID: {rule.rule_id}) syntax error: {e}"
             )
         except Exception as e:
-            logger.error(
-                f"❌ Error evaluating rule '{rule.rule_name}' (ID: {rule.rule_id}): {e}",
-                exc_info=True,
+            logger.exception(
+                f"❌ Error evaluating rule '{rule.rule_name}' (ID: {rule.rule_id}): {e}"
             )
 
         return False
@@ -157,7 +156,7 @@ class RuleEvaluator:
             await asyncio.gather(*tasks, return_exceptions=True)
 
         except Exception as e:
-            logger.error(f"❌ Error in evaluation cycle: {e}", exc_info=True)
+            logger.exception(f"❌ Error in evaluation cycle: {e}")
 
     async def evaluate_rules_for_sensor(
         self, sensor_id: str, value: float, db_session: AsyncSession
@@ -180,6 +179,4 @@ class RuleEvaluator:
             await asyncio.gather(*tasks, return_exceptions=True)
 
         except Exception as e:
-            logger.error(
-                f"❌ Error evaluating rules for sensor {sensor_id}: {e}", exc_info=True
-            )
+            logger.exception(f"❌ Error evaluating rules for sensor {sensor_id}: {e}")

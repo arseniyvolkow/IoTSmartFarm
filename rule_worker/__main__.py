@@ -25,7 +25,7 @@ if __name__ == "__main__":
         if interval <= 0:
             raise ValueError("Interval must be a positive integer.")
     except (ValueError, TypeError) as e:
-        logger.error(f"Invalid interval configuration: {e}. Defaulting to 60s.")
+        logger.exception(f"Invalid interval configuration: {e}. Defaulting to 60s.")
         interval = 60
 
     logger.info(f"🚀 Starting Rule Worker Daemon with {interval}s interval")
@@ -36,5 +36,5 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         logger.info("⚠️  Rule Worker Daemon received interrupt signal - shutting down")
     except Exception as e:
-        logger.critical(f"🚨 Rule Worker Daemon crashed: {e}", exc_info=True)
+        logger.critical(f"🚨 Rule Worker Daemon crashed: {e}")
         sys.exit(1)

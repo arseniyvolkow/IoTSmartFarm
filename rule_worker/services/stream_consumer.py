@@ -80,10 +80,8 @@ class StreamConsumer:
                                 stream_name, group_name, message_id
                             )
                         except Exception as e:
-                            logger.error(
-                                f"Error processing sensor update: {e}", exc_info=True
-                            )
+                            logger.exception(f"Error processing sensor update: {e}")
 
             except Exception as e:
-                logger.error(f"❌ Error in Stream listener: {e}", exc_info=True)
+                logger.exception(f"❌ Error in Stream listener: {e}")
                 await asyncio.sleep(5)

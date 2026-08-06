@@ -93,12 +93,11 @@ async def get_current_user_identity(
 
         # 3. Check if token was revoked (Logout check)
         jti = payload.get("jti")
-        if jti:
-            if await is_token_blacklisted(jti):
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Token has been revoked",
-                )
+        if jti and await is_token_blacklisted(jti):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token has been revoked",
+            )
 
         # 4. Cache the valid payload in Redis
         # TTL is matched exactly to the token's remaining lifespan

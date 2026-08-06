@@ -56,7 +56,7 @@ class RuleContextBuilder:
 
         elif rule.trigger_type == RuleTriggerType.TIME_BASED:
             # For time-based rules, use local time for easier rule writing (e.g., "hour == 8")
-            local_now = datetime.now()
+            local_now = datetime.now(timezone.utc)
             context.update(
                 {
                     "hour": local_now.hour,

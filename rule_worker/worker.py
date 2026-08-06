@@ -53,8 +53,8 @@ async def run_rule_worker_daemon(interval_seconds: int = 60):
         # 1. Initialize Redis Service
         redis_service = RedisService(
             host=os.getenv("REDIS_HOST", "localhost"),
-            port=int(os.getenv("REDIS_PORT", 6379)),
-            db=int(os.getenv("REDIS_DB", 0)),
+            port=int(os.getenv("REDIS_PORT", "6379")),
+            db=int(os.getenv("REDIS_DB", "0")),
             password=os.getenv("REDIS_PASSWORD"),
         )
 

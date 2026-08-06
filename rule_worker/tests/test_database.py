@@ -12,8 +12,8 @@ async def test_get_db_success():
         mock_session = AsyncMock()
         mock_session_local.return_value.__aenter__.return_value = mock_session
 
-        async with get_db() as session:
-            assert session == mock_session
+        async with get_db() as _session:
+            assert _session == mock_session
 
         mock_session.commit.assert_called_once()
         mock_session.rollback.assert_not_called()
@@ -25,7 +25,7 @@ async def test_get_db_error():
         mock_session_local.return_value.__aenter__.return_value = mock_session
 
         with pytest.raises(ValueError):
-            async with get_db() as session:
+            async with get_db() as _session:
                 raise ValueError("error")
 
         mock_session.commit.assert_not_called()

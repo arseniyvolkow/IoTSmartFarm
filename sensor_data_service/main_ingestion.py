@@ -113,9 +113,7 @@ async def main():
         logger.info("Async MQTT Service started in INGESTION mode.")
 
         # Start the actuator command bridge in the background
-        bridge_task = asyncio.create_task(
-            actuator_command_subscriber(redis_service, mqtt_service)
-        )
+        asyncio.create_task(actuator_command_subscriber(redis_service, mqtt_service))
 
         # Keep the worker running
         while True:

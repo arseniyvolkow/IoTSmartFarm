@@ -5,8 +5,8 @@ import redis.asyncio as redis
 # Create a connection pool for better performance under load
 # max_connections prevents the system from being overwhelmed
 REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
-REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
-REDIS_PASSWORD = os.getenv("REDIS_PASSWORD", None)
+REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
+REDIS_PASSWORD = os.getenv("REDIS_PASSWORD")
 
 pool = redis.ConnectionPool(
     host=REDIS_HOST,

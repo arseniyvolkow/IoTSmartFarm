@@ -26,7 +26,7 @@ class ActionExecutor:
         }
 
     async def execute(
-        self, action_dict: dict[str, Any], context: dict[str, Any] = None
+        self, action_dict: dict[str, Any], context: dict[str, Any] | None = None
     ) -> bool:
         """
         Executes an action based on its type using the handler map.
@@ -54,9 +54,7 @@ class ActionExecutor:
                 logger.warning(f"⚠️ Action {action_id} failed or returned False.")
             return result
         except Exception as e:
-            logger.error(
-                f"❌ Critical error executing action {action_id}: {e}", exc_info=True
-            )
+            logger.exception(f"❌ Critical error executing action {action_id}: {e}")
             return False
 
     async def _execute_device_control(self, payload: dict[str, Any]) -> bool:

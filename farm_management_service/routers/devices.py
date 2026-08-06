@@ -1,6 +1,7 @@
 import json
 import os
 
+import aiofiles
 import aiomqtt
 from fastapi import APIRouter, File, HTTPException, Path, Query, Request, UploadFile
 from starlette import status
@@ -177,8 +178,8 @@ async def device_firmware_update(
         file_path = os.path.join(firmware_dir, file.filename)
 
         firmware_content = await file.read()
-        with open(file_path, "wb") as f:
-            f.write(firmware_content)
+        async with aiofiles.open(file_path, "wb") as f:
+            await f.write(firmware_content)
 
         # 2. Construct the download URL
         # For production, backend IP/domain would be used. Using host header for now.
@@ -189,7 +190,7 @@ async def device_firmware_update(
 
         # 3. Publish MQTT Command
         broker = os.getenv("MQTT_BROKER_URL", "mosquitto")
-        port = int(os.getenv("MQTT_BROKER_PORT", 1883))
+        port = int(os.getenv("MQTT_BROKER_PORT", "1883"))
         username = os.getenv("MQTT_USERNAME")
         password = os.getenv("MQTT_PASSWORD")
 
@@ -235,7 +236,7 @@ async def provision_device(
         "status": "provisioned",
         "device_id": device.device_id,
         "mqtt_broker": os.getenv("MQTT_BROKER_URL", "mosquitto"),
-        "mqtt_port": int(os.getenv("MQTT_BROKER_PORT", 1883)),
+        "mqtt_port": int(os.getenv("MQTT_BROKER_PORT", "1883")),
         "mqtt_username": os.getenv("MQTT_USERNAME"),
         "mqtt_password": os.getenv("MQTT_PASSWORD"),
         "commands_topic": f"device/{device.device_id}/commands",
