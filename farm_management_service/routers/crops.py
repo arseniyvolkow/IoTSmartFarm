@@ -1,4 +1,3 @@
-
 from fastapi import APIRouter, HTTPException, Path, Query, status
 from sqlalchemy import select
 
@@ -53,7 +52,9 @@ async def change_crop_info(
 ):
     crop_entity = await crop_service.get(crop_id)
     await crop_service.check_access(crop_entity, current_user)
-    new_crop_entity = await crop_service.update(crop_entity, **crop_data.model_dump(exclude_unset=True))
+    new_crop_entity = await crop_service.update(
+        crop_entity, **crop_data.model_dump(exclude_unset=True)
+    )
     return new_crop_entity
 
 

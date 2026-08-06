@@ -1,4 +1,3 @@
-
 from fastapi import HTTPException, status
 
 from common.models.rule_models import RuleActions, Rules
@@ -33,19 +32,21 @@ class RulesService:
         # 3. Prepare and add RuleActions entities
         rule_actions = []
         from common.models.rule_enums import RuleActionType
-        
+
         for action_data in rule.actions:
             action_payload = action_data.action_payload.model_dump()
-            
+
             # Inject device_id if this is a CONTROL_DEVICE action
             if action_data.action_type == RuleActionType.CONTROL_DEVICE:
                 actuators = action_payload.get("actuators_to_control", [])
                 for act in actuators:
                     if "actuator_id" in act and "device_id" not in act:
-                        device_id = await self.rule_repo.get_device_id_for_actuator(act["actuator_id"])
+                        device_id = await self.rule_repo.get_device_id_for_actuator(
+                            act["actuator_id"]
+                        )
                         if device_id:
                             act["device_id"] = device_id
-                            
+
             action_entity = RuleActions(
                 action_type=action_data.action_type,
                 action_payload=action_payload,

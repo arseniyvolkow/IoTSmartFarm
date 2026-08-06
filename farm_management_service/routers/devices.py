@@ -126,9 +126,7 @@ async def assign_user_to_device(
         await device_service.update(device_entity, user_id=current_user.id)
 
         # Update all sensors associated with this device (if sensors have user_id field)
-        await sensor_service.assign_user_to_device_sensors(
-            device_id, current_user.id
-        )
+        await sensor_service.assign_user_to_device_sensors(device_id, current_user.id)
 
         # Update all actuators associated with this device (if actuators have user_id field)
         await actuator_service.assign_user_to_device_actuators(
@@ -177,27 +175,35 @@ async def device_firmware_update(
         firmware_dir = "/home/arseniy/Projects/IoTSmartFarm/firmware"
         os.makedirs(firmware_dir, exist_ok=True)
         file_path = os.path.join(firmware_dir, file.filename)
-        
+
         firmware_content = await file.read()
         with open(file_path, "wb") as f:
             f.write(firmware_content)
-            
+
         # 2. Construct the download URL
         # For production, backend IP/domain would be used. Using host header for now.
-        base_url = str(request.base_url).rstrip('/')
-        download_url = f"{base_url}/api/farm-management-service/firmware/{file.filename}"
-        
+        base_url = str(request.base_url).rstrip("/")
+        download_url = (
+            f"{base_url}/api/farm-management-service/firmware/{file.filename}"
+        )
+
         # 3. Publish MQTT Command
         broker = os.getenv("MQTT_BROKER_URL", "mosquitto")
         port = int(os.getenv("MQTT_BROKER_PORT", 1883))
         username = os.getenv("MQTT_USERNAME")
         password = os.getenv("MQTT_PASSWORD")
-        
-        async with aiomqtt.Client(hostname=broker, port=port, username=username, password=password) as client:
+
+        async with aiomqtt.Client(
+            hostname=broker, port=port, username=username, password=password
+        ) as client:
             payload = json.dumps({"command": "update_firmware", "url": download_url})
             await client.publish(f"device/{device_id}/commands", payload)
-            
-        return {"status": "success", "message": "OTA command published via MQTT", "url": download_url}
+
+        return {
+            "status": "success",
+            "message": "OTA command published via MQTT",
+            "url": download_url,
+        }
     except Exception as e:
         return {"status": "error", "detail": str(e)}
 
@@ -206,24 +212,24 @@ async def device_firmware_update(
 async def provision_device(
     mac_address: str = Query(..., description="The unique MAC address of the device"),
     setup_token: str = Query(..., description="Factory burned setup token"),
-    device_service: DeviceServiceDependency = None
+    device_service: DeviceServiceDependency = None,
 ):
     # In a real scenario, setup_token is verified against a secure database or .env
     expected_token = os.getenv("DEVICE_SETUP_TOKEN", "default_secure_token")
     if setup_token != expected_token:
         raise HTTPException(status_code=401, detail="Invalid setup token")
-        
+
     # Auto-create device if it doesn't exist (Zero-Touch Provisioning)
     # Using a dummy model_number/firmware_version for ZTP
     device_data = DeviceCreate(
         unique_device_id=mac_address,
-        device_ip_address="0.0.0.0", # IP no longer strictly needed for connection
+        device_ip_address="0.0.0.0",  # IP no longer strictly needed for connection
         model_number="ZTP-ESP32",
-        firmware_version="1.0.0"
+        firmware_version="1.0.0",
     )
-    
+
     device = await device_service.create(device_data)
-    
+
     # Return device ID and credentials so the device can store them and connect to MQTT
     return {
         "status": "provisioned",
@@ -233,5 +239,5 @@ async def provision_device(
         "mqtt_username": os.getenv("MQTT_USERNAME"),
         "mqtt_password": os.getenv("MQTT_PASSWORD"),
         "commands_topic": f"device/{device.device_id}/commands",
-        "data_topic": f"device/{device.device_id}/data"
+        "data_topic": f"device/{device.device_id}/data",
     }

@@ -1,4 +1,3 @@
-
 from sqlalchemy import select
 
 from farm_management_service.models import CropManagement

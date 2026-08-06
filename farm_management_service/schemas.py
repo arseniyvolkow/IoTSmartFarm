@@ -7,13 +7,16 @@ from farm_management_service.enums import AccessLevel, ActuatorState, DeviceStat
 
 T = TypeVar("T")
 
+
 # Farm Access Models
 class FarmAccessBase(BaseModel):
     user_id: str
     access_level: AccessLevel = AccessLevel.READ
 
+
 class FarmAccessCreate(FarmAccessBase):
     pass
+
 
 class FarmAccessRead(FarmAccessBase):
     access_id: str
@@ -52,15 +55,17 @@ class SensorUpdate(BaseModel):
 
 # Actuators Models
 
+
 class ActuatorBase(BaseModel):
     actuator_type: str
     available_states: dict
     current_state: ActuatorState = ActuatorState.OFF
-    
+
     model_config = ConfigDict(
         from_attributes=True,
         use_enum_values=True,
     )
+
 
 class ActuatorRead(ActuatorBase):
     actuator_id: str
@@ -68,7 +73,7 @@ class ActuatorRead(ActuatorBase):
     user_id: str | None = None
     created_at: datetime
     updated_at: datetime
-    
+
 
 class ActuatorUpdate(BaseModel):
     current_state: ActuatorState | None = None
@@ -83,6 +88,7 @@ class ActuatorCreate(ActuatorBase):
 
 
 # Device Models
+
 
 class DeviceBase(BaseModel):
     unique_device_id: str
@@ -131,7 +137,6 @@ class FarmBase(BaseModel):
 
 class FarmRead(FarmBase):
     farm_id: str
-    
 
 
 class FarmCreate(FarmBase):
@@ -142,7 +147,6 @@ class FarmUpdate(BaseModel):
     farm_name: str | None = None
     total_area: int | None = None
     location: str | None = None
-
 
 
 # CropManagment models
@@ -158,9 +162,10 @@ class CropManagmentRead(CropManagmentBase):
     crop_id: str
     farm_id: str
 
+
 class CropManagmentCreate(CropManagmentBase):
     crop_type_id: str
-    farm_id:str
+    farm_id: str
 
 
 class CropManagmentUpdate(BaseModel):
@@ -182,7 +187,7 @@ class CropCreate(CropBase):
 
 class CropRead(CropBase):
     crop_id: str
-    model_config = ConfigDict(from_attributes=True) 
+    model_config = ConfigDict(from_attributes=True)
 
 
 # Error

@@ -8,6 +8,7 @@ from rule_worker.services.redis_service import RedisService
 
 logger = logging.getLogger(__name__)
 
+
 class ActionExecutor:
     """
     Dispatcher service to execute rule actions.
@@ -16,7 +17,7 @@ class ActionExecutor:
 
     def __init__(self, redis_service: RedisService):
         self.redis_service = redis_service
-        
+
         # Mapping RuleActionType (from common.models.rule_enums) to handler methods
         self._handlers: dict[str, Callable[[dict[str, Any]], Awaitable[bool]]] = {
             RuleActionType.CONTROL_DEVICE.value: self._execute_device_control,
@@ -24,7 +25,9 @@ class ActionExecutor:
             RuleActionType.LOG_EVENT.value: self._execute_log_message,
         }
 
-    async def execute(self, action_dict: dict[str, Any], context: dict[str, Any] = None) -> bool:
+    async def execute(
+        self, action_dict: dict[str, Any], context: dict[str, Any] = None
+    ) -> bool:
         """
         Executes an action based on its type using the handler map.
         """
@@ -35,11 +38,13 @@ class ActionExecutor:
         handler = self._handlers.get(action_type)
 
         if not handler:
-            logger.warning(f"⚠️ Unknown action type '{action_type}' for action ID {action_id}")
+            logger.warning(
+                f"⚠️ Unknown action type '{action_type}' for action ID {action_id}"
+            )
             return False
 
         logger.info(f"▶️ Executing action {action_id} [{action_type}]")
-        
+
         try:
             # Pass context if needed by handlers in the future
             result = await handler(action_payload)
@@ -49,7 +54,9 @@ class ActionExecutor:
                 logger.warning(f"⚠️ Action {action_id} failed or returned False.")
             return result
         except Exception as e:
-            logger.error(f"❌ Critical error executing action {action_id}: {e}", exc_info=True)
+            logger.error(
+                f"❌ Critical error executing action {action_id}: {e}", exc_info=True
+            )
             return False
 
     async def _execute_device_control(self, payload: dict[str, Any]) -> bool:
@@ -63,7 +70,7 @@ class ActionExecutor:
             return False
 
         control_payload = {"actuators_to_control": actuators}
-        
+
         try:
             message = json.dumps(control_payload)
             # Publishing to the 'actuator_commands' Redis channel
@@ -87,7 +94,7 @@ class ActionExecutor:
         """
         message = payload.get("message", "Rule triggered")
         level_str = payload.get("level", "INFO").upper()
-        
+
         log_method = getattr(logger, level_str.lower(), logger.info)
         log_method(f"📝 RULE LOG: {message}")
         return True

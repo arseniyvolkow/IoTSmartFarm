@@ -12,17 +12,22 @@ from sensor_data_service.services.redis_service import RedisService
 # --- Вспомогательные функции получения из state ---
 # Они достают уже инициализированные в lifespan сервисы
 
+
 def get_settings(request: Request) -> Settings:
     return request.app.state.settings
+
 
 def get_influx_service(request: Request) -> InfluxDBService:
     return request.app.state.influx_service
 
+
 def get_mqtt_service(request: Request) -> AsyncMQTTService:
     return request.app.state.mqtt_service
 
+
 def get_redis_service(request: Request) -> RedisService:
     return request.app.state.redis_service
+
 
 # --- Типизированные зависимости (Dependency Injection) ---
 

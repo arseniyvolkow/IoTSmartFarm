@@ -1,4 +1,3 @@
-
 from fastapi import APIRouter, Path, Query, status
 
 from farm_management_service.dependencies import (

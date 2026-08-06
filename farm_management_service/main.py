@@ -29,7 +29,11 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(root_path="/api/farm-management-service", lifespan=lifespan)
-app.mount("/firmware", StaticFiles(directory="/home/arseniy/Projects/IoTSmartFarm/firmware"), name="firmware")
+app.mount(
+    "/firmware",
+    StaticFiles(directory="/home/arseniy/Projects/IoTSmartFarm/firmware"),
+    name="firmware",
+)
 
 app.include_router(devices.router)
 app.include_router(farms.router)
@@ -37,6 +41,7 @@ app.include_router(crops.router)
 app.include_router(sensors.router)
 app.include_router(actuators.router)
 app.include_router(access_control.router)
+
 
 @app.get("/health")
 async def health_check():

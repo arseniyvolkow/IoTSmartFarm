@@ -24,19 +24,21 @@ TOKEN_URL = os.getenv("AUTH_TOKEN_URL", "http://user-service:8000/auth/token")
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=TOKEN_URL)
 
+
 class UserIdentity:
     """
     ULTRA-LIGHTWEIGHT IDENTITY CLASS
     --------------------------------
     Replaces Pydantic's CurrentUser for high-performance dependency injection.
-    
+
     Why this instead of Pydantic?
     1. __slots__ minimizes memory usage and provides faster attribute access.
     2. Zero validation overhead: Pydantic is slow when instantiated 1000s of times/sec.
     3. Provides IDE autocompletion while remaining almost as fast as a raw dict.
     """
+
     __slots__ = ("access", "email", "g_perms", "id", "raw_payload", "role")
-    
+
     def __init__(self, payload: dict):
         self.id = payload.get("sub")
         self.email = payload.get("email")
@@ -44,6 +46,7 @@ class UserIdentity:
         self.g_perms = payload.get("g_perms", {})
         self.access = payload.get("access", {})
         self.raw_payload = payload
+
 
 def decode_access_token(token: str) -> dict:
     """
@@ -59,14 +62,16 @@ def decode_access_token(token: str) -> dict:
         )
 
 
-async def get_current_user_identity(token: Annotated[str, Depends(oauth2_scheme)]) -> UserIdentity:
+async def get_current_user_identity(
+    token: Annotated[str, Depends(oauth2_scheme)],
+) -> UserIdentity:
     """
     HIGH-PERFORMANCE AUTH DEPENDENCY
     -------------------------------
     This is the core gateway for every API request. Optimized for >500 RPS.
-    
+
     Optimization Logic:
-    1. REDIS SESSION CACHE: We hash the token and check Redis. If found, we skip 
+    1. REDIS SESSION CACHE: We hash the token and check Redis. If found, we skip
        expensive RSA/HMAC decoding and return the payload instantly.
     2. ORJSON: Uses Rust-based JSON parsing which is 3x faster than standard library.
     3. BLACKLIST CHECK: Only performed on cache misses to reduce Redis IO.
@@ -85,16 +90,16 @@ async def get_current_user_identity(token: Annotated[str, Depends(oauth2_scheme)
 
         # 2. Cache Miss: Perform full cryptographic validation (The "Slow Path")
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        
+
         # 3. Check if token was revoked (Logout check)
         jti = payload.get("jti")
         if jti:
             if await is_token_blacklisted(jti):
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Token has been revoked"
+                    detail="Token has been revoked",
                 )
-        
+
         # 4. Cache the valid payload in Redis
         # TTL is matched exactly to the token's remaining lifespan
         exp = payload.get("exp")
@@ -115,8 +120,9 @@ async def get_current_user_identity(token: Annotated[str, Depends(oauth2_scheme)
         # Fallback if Redis is down: allow requests but log the error
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Authentication check unavailable"
+            detail="Authentication check unavailable",
         )
+
 
 # Backward compatibility alias
 async def get_token_payload(token: Annotated[str, Depends(oauth2_scheme)]) -> dict:
@@ -129,14 +135,17 @@ class CheckAccess:
     RBAC PROTECTION MIDDLEWARE
     --------------------------
     Enforces Resource-based Access Control.
-    
+
     Usage: Depends(CheckAccess("sensors", "write"))
     """
-    def __init__(self, resource: str, action: str):
-        self.resource = resource 
-        self.action = action     
 
-    async def __call__(self, user: UserIdentity = Depends(get_current_user_identity)) -> UserIdentity:
+    def __init__(self, resource: str, action: str):
+        self.resource = resource
+        self.action = action
+
+    async def __call__(
+        self, user: UserIdentity = Depends(get_current_user_identity)
+    ) -> UserIdentity:
         # Global admin permissions bypass specific checks
         g_perms = user.g_perms
         if self.action == "read" and g_perms.get("r_all") is True:
@@ -150,7 +159,7 @@ class CheckAccess:
         if not resource_access:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Access to resource '{self.resource}' denied"
+                detail=f"Access to resource '{self.resource}' denied",
             )
 
         # Boolean permission check
@@ -165,17 +174,20 @@ class CheckAccess:
         if not has_permission:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Not enough permissions to {self.action} {self.resource}"
+                detail=f"Not enough permissions to {self.action} {self.resource}",
             )
 
         return user
 
+
 # --- Helpers ---
+
 
 def is_admin(user: Any) -> bool:
     if isinstance(user, dict):
         return user.get("g_perms", {}).get("w_all", False)
     return getattr(user, "g_perms", {}).get("w_all", False)
+
 
 def get_current_user_id(user: Any) -> str:
     if isinstance(user, dict):

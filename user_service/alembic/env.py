@@ -19,7 +19,9 @@ import os
 import sys
 
 # Add the project root to sys.path so we can import the service modules
-sys.path.insert(0, os.path.realpath(os.path.join(os.path.dirname(__file__), '..', '..')))
+sys.path.insert(
+    0, os.path.realpath(os.path.join(os.path.dirname(__file__), "..", ".."))
+)
 
 from user_service.models import Base
 
@@ -27,8 +29,10 @@ from user_service.models import Base
 # for 'autogenerate' support
 target_metadata = Base.metadata
 
+
 def get_url():
     return f"postgresql+asyncpg://{os.getenv('POSTGRES_USER_DATABASE_USERNAME')}:{os.getenv('POSTGRES_USER_DATABASE_PASSWORD')}@{os.getenv('POSTGRES_USER_DATABASE_HOST')}:5432/{os.getenv('POSTGRES_USER_DATABASE_NAME')}"
+
 
 config.set_main_option("sqlalchemy.url", get_url())
 

@@ -1,4 +1,3 @@
-
 from fastapi import APIRouter, Path, Query, status
 
 from rule_service.dependencies import CurrentUserDependency, RulesServiceDependency

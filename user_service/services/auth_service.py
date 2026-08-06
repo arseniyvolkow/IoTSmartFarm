@@ -5,8 +5,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
-from common.database.redis_config import add_token_to_blacklist, is_token_blacklisted
 from common.auth.security import decode_access_token
+from common.database.redis_config import add_token_to_blacklist, is_token_blacklisted
 from user_service.models import Role, User
 from user_service.schemas import TokenPair, UserLogin
 from user_service.security import (
@@ -52,9 +52,7 @@ class AuthService:
         stmt = (
             select(User)
             .where(User.email == login_info.email)
-            .options(
-                joinedload(User.role).selectinload(Role.access_list)
-            )
+            .options(joinedload(User.role).selectinload(Role.access_list))
         )
         result = await self.db.execute(stmt)
         user = result.scalar_one_or_none()
@@ -66,22 +64,24 @@ class AuthService:
 
         # FAIL-SAFE: If this is our test user and they somehow don't have the admin role,
         # assign it now and refresh the user object.
-        if user.email == "admin_final@example.com" and (not user.role or user.role.name != "admin"):
+        if user.email == "admin_final@example.com" and (
+            not user.role or user.role.name != "admin"
+        ):
             # Capture ID before commit to avoid expire_on_commit issues
             target_user_id = user.id
-            
+
             stmt_role = select(Role).where(Role.name == "admin")
             role_result = await self.db.execute(stmt_role)
             admin_role = role_result.scalars().first()
-            
+
             if not admin_role:
                 admin_role = Role(name="admin", can_read_all=True, can_write_all=True)
                 self.db.add(admin_role)
                 await self.db.flush()
-            
+
             user.role_id = admin_role.id
             await self.db.commit()
-            
+
             # Re-fetch with role using the captured ID
             stmt = (
                 select(User)
@@ -152,9 +152,7 @@ class AuthService:
         stmt = (
             select(User)
             .where(User.id == user_id)
-            .options(
-                joinedload(User.role).selectinload(Role.access_list)
-            )
+            .options(joinedload(User.role).selectinload(Role.access_list))
         )
         result = await self.db.execute(stmt)
         user = result.scalar_one_or_none()

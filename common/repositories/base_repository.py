@@ -18,12 +18,12 @@ class BaseRepository(abc.ABC):
         Prioritizes Global RBAC permissions (g_perms) if User object is provided.
         """
         user_id = user
-        
+
         # 1. Check Global Permissions (RBAC Override)
         if isinstance(user, CurrentUser):
             user_id = user.id
             g_perms = user.g_perms or {}
-            
+
             # Super Admin / Write All access overrides everything
             if g_perms.get("w_all") is True:
                 return

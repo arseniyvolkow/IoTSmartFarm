@@ -6,7 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 class UserRegister(BaseModel):
     email: str
-    password: str = Field(min_length=8) # Match the 8-char requirement in service
+    password: str = Field(min_length=8)  # Match the 8-char requirement in service
     password_confirm: str
     first_name: str
     last_name: str
@@ -21,7 +21,9 @@ class UserRegister(BaseModel):
             or not re.search(r"\d", v)
             or not re.search(r'[!@#$%^&*(),.?":{}|<>]', v)
         ):
-            raise ValueError("Password must be at least 8 characters long and include uppercase, lowercase, digit, and special character.")
+            raise ValueError(
+                "Password must be at least 8 characters long and include uppercase, lowercase, digit, and special character."
+            )
         return v
 
 
@@ -35,6 +37,7 @@ class UserUpdate(BaseModel):
     Updated to include email and password as expected by UserService.update_user.
     Standardized 'second_name' to 'last_name' to match the model.
     """
+
     email: str | None = None
     password: str | None = None
     first_name: str | None = None
@@ -54,7 +57,9 @@ class UserUpdate(BaseModel):
                 or not re.search(r"\d", v)
                 or not re.search(r'[!@#$%^&*(),.?":{}|<>]', v)
             ):
-                raise ValueError("Password must be at least 8 characters long and include uppercase, lowercase, digit, and special character.")
+                raise ValueError(
+                    "Password must be at least 8 characters long and include uppercase, lowercase, digit, and special character."
+                )
         return v
 
 
@@ -80,8 +85,9 @@ class UserBase(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+
 class UserResponse(UserBase):
-    role_id: str | None = None # Role might be null initially
+    role_id: str | None = None  # Role might be null initially
 
 
 class PermissionBase(BaseModel):
@@ -90,20 +96,25 @@ class PermissionBase(BaseModel):
     can_write: bool = False
     can_delete: bool = False
 
+
 class PermissionSet(PermissionBase):
     pass
+
 
 class PermissionResponse(PermissionBase):
     id: str
     model_config = ConfigDict(from_attributes=True)
+
 
 class RoleBase(BaseModel):
     name: str
     can_read_all: bool = False
     can_write_all: bool = False
 
+
 class RoleCreate(RoleBase):
     pass
+
 
 class RoleResponse(RoleBase):
     id: str

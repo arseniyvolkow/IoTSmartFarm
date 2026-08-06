@@ -18,14 +18,18 @@ if config.config_file_name is not None:
 import os
 import sys
 
-sys.path.insert(0, os.path.realpath(os.path.join(os.path.dirname(__file__), '..', '..')))
+sys.path.insert(
+    0, os.path.realpath(os.path.join(os.path.dirname(__file__), "..", ".."))
+)
 
 from farm_management_service.models import Base
 
 target_metadata = Base.metadata
 
+
 def get_url():
     return f"postgresql+asyncpg://{os.getenv('POSTGRES_FARM_DATABASE_USERNAME')}:{os.getenv('POSTGRES_FARM_DATABASE_PASSWORD')}@{os.getenv('POSTGRES_FARM_DATABASE_HOST')}:5432/{os.getenv('POSTGRES_FARM_DATABASE_NAME')}"
+
 
 config.set_main_option("sqlalchemy.url", get_url())
 

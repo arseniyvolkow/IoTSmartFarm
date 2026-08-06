@@ -1,4 +1,3 @@
-
 from fastapi import HTTPException, status
 
 from common.auth.schemas import CurrentUser
@@ -10,26 +9,33 @@ from farm_management_service.services.access_service import AccessService
 
 
 class ActuatorService:
-    def __init__(self, actuator_repo: ActuatorRepository, access_service: AccessService):
+    def __init__(
+        self, actuator_repo: ActuatorRepository, access_service: AccessService
+    ):
         self.actuator_repo = actuator_repo
         self.access_service = access_service
 
-    async def check_access(self, entity, user: CurrentUser | str, required_level: AccessLevel = AccessLevel.READ):
+    async def check_access(
+        self,
+        entity,
+        user: CurrentUser | str,
+        required_level: AccessLevel = AccessLevel.READ,
+    ):
         user_id = user
-        
+
         # 1. Check Global Permissions (RBAC Override)
         if isinstance(user, CurrentUser):
             user_id = user.id
             g_perms = user.g_perms or {}
             if g_perms.get("w_all") is True:
-                return # Admin Write
+                return  # Admin Write
             if g_perms.get("r_all") is True and required_level == AccessLevel.READ:
-                return # Admin Read
+                return  # Admin Read
 
         # 2. Direct Ownership (Actuator)
         if getattr(entity, "user_id", None) == user_id:
             return
-            
+
         # 3. Device Ownership
         if entity.device and entity.device.user_id == user_id:
             return
@@ -37,7 +43,9 @@ class ActuatorService:
         # 4. Farm Access
         device = entity.device
         if device and device.farm_id:
-            has_perm = await self.access_service.has_access(device.farm_id, user_id, required_level)
+            has_perm = await self.access_service.has_access(
+                device.farm_id, user_id, required_level
+            )
             if has_perm:
                 return
 
@@ -45,7 +53,9 @@ class ActuatorService:
             status_code=status.HTTP_403_FORBIDDEN, detail="Access denied!"
         )
 
-    def add_actuators_to_session(self, device_id: str, actuators_list: list[ActuatorBase]):
+    def add_actuators_to_session(
+        self, device_id: str, actuators_list: list[ActuatorBase]
+    ):
         self.actuator_repo.add_actuators_to_session(device_id, actuators_list)
 
     async def get(self, actuator_id: str) -> Actuators:
@@ -63,7 +73,9 @@ class ActuatorService:
         cursor: str | None = None,
         limit: int | None = 10,
     ) -> tuple[list[ActuatorRead], str | None]:
-        items, next_cursor = await self.actuator_repo.get_all_actuators(user_id, sort_column, cursor, limit)
+        items, next_cursor = await self.actuator_repo.get_all_actuators(
+            user_id, sort_column, cursor, limit
+        )
         pydantic_items = [ActuatorRead.model_validate(item) for item in items]
         return pydantic_items, next_cursor
 

@@ -20,15 +20,15 @@ async def hash_password(password: str):
     -----------------------------
     Standard Bcrypt is synchronous and CPU-heavy (~100ms per call).
     Running it normally blocks the event loop and stops all other requests.
-    
+
     Fix: Using asyncio.to_thread to move the computation to a worker thread.
     """
     pwd_bytes = password.encode("utf-8")
-    
+
     def _hash():
         salt = bcrypt.gensalt()
         return bcrypt.hashpw(pwd_bytes, salt).decode("utf-8")
-        
+
     return await asyncio.to_thread(_hash)
 
 
@@ -38,12 +38,12 @@ async def verify_password(plain_password: str, hashed_password: str):
     ----------------------------------
     Prevents the event loop from freezing during login attempts.
     """
+
     def _verify():
         return bcrypt.checkpw(
-            plain_password.encode("utf-8"), 
-            hashed_password.encode("utf-8")
+            plain_password.encode("utf-8"), hashed_password.encode("utf-8")
         )
-        
+
     return await asyncio.to_thread(_verify)
 
 

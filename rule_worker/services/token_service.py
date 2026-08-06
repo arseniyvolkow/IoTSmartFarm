@@ -6,18 +6,22 @@ import jwt
 
 logger = logging.getLogger(__name__)
 
+
 class TokenService:
     """
     Service to generate internal JWT tokens for rule-triggered actions.
     This allows the Rule Worker to call other microservices (like Sensor Data Service)
     with the necessary permissions.
     """
+
     def __init__(self):
         self.secret_key = os.getenv("SECRET_KEY")
         self.algorithm = os.getenv("ALGORITHM", "HS256")
-        
+
         if not self.secret_key:
-            logger.error("SECRET_KEY not found in environment variables. Actions requiring auth will fail.")
+            logger.error(
+                "SECRET_KEY not found in environment variables. Actions requiring auth will fail."
+            )
 
     def generate_service_token(self, expires_in: int = 60) -> str | None:
         """
@@ -35,9 +39,9 @@ class TokenService:
             "jti": f"rule_worker_{now}",
             "g_perms": {
                 "w_all": True,  # Give internal worker broad permissions
-                "r_all": True
+                "r_all": True,
             },
-            "access": {}
+            "access": {},
         }
 
         try:

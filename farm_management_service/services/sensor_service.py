@@ -1,4 +1,3 @@
-
 from fastapi import HTTPException, status
 
 from common.auth.schemas import CurrentUser
@@ -14,22 +13,27 @@ class SensorService:
         self.sensor_repo = sensor_repo
         self.access_service = access_service
 
-    async def check_access(self, entity, user: CurrentUser | str, required_level: AccessLevel = AccessLevel.READ):
+    async def check_access(
+        self,
+        entity,
+        user: CurrentUser | str,
+        required_level: AccessLevel = AccessLevel.READ,
+    ):
         user_id = user
-        
+
         # 1. Check Global Permissions (RBAC Override)
         if isinstance(user, CurrentUser):
             user_id = user.id
             g_perms = user.g_perms or {}
             if g_perms.get("w_all") is True:
-                return # Admin Write
+                return  # Admin Write
             if g_perms.get("r_all") is True and required_level == AccessLevel.READ:
-                return # Admin Read
+                return  # Admin Read
 
         # 2. Direct Ownership (Sensor)
         if getattr(entity, "user_id", None) == user_id:
             return
-            
+
         # 3. Device Ownership
         if entity.device and entity.device.user_id == user_id:
             return
@@ -37,7 +41,9 @@ class SensorService:
         # 4. Farm Access
         device = entity.device
         if device and device.farm_id:
-            has_perm = await self.access_service.has_access(device.farm_id, user_id, required_level)
+            has_perm = await self.access_service.has_access(
+                device.farm_id, user_id, required_level
+            )
             if has_perm:
                 return
 
@@ -63,7 +69,9 @@ class SensorService:
         cursor: str | None = None,
         limit: int | None = 10,
     ) -> tuple[list[SensorRead], str | None]:
-        items, next_cursor = await self.sensor_repo.get_all_sensors(user_id, sort_column, cursor, limit)
+        items, next_cursor = await self.sensor_repo.get_all_sensors(
+            user_id, sort_column, cursor, limit
+        )
         pydantic_items = [SensorRead.model_validate(item) for item in items]
         return pydantic_items, next_cursor
 

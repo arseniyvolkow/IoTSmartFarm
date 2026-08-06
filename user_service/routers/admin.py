@@ -1,4 +1,3 @@
-
 from fastapi import APIRouter, Depends, status
 
 from common.auth.security import CheckAccess

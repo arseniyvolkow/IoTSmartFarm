@@ -1,4 +1,3 @@
-
 from sqlalchemy import delete, select
 
 from farm_management_service.enums import AccessLevel
@@ -14,24 +13,25 @@ class AccessRepository(BaseRepository):
 
     async def get_access_entry(self, farm_id: str, user_id: str) -> FarmAccess | None:
         query = select(FarmAccess).filter(
-            FarmAccess.farm_id == farm_id,
-            FarmAccess.user_id == user_id
+            FarmAccess.farm_id == farm_id, FarmAccess.user_id == user_id
         )
         result = await self.db.execute(query)
         return result.scalar_one_or_none()
 
-    async def create_access(self, farm_id: str, user_id: str, access_level: AccessLevel) -> FarmAccess:
+    async def create_access(
+        self, farm_id: str, user_id: str, access_level: AccessLevel
+    ) -> FarmAccess:
         new_access = FarmAccess(
-            farm_id=farm_id,
-            user_id=user_id,
-            access_level=access_level
+            farm_id=farm_id, user_id=user_id, access_level=access_level
         )
         self.db.add(new_access)
         await self.db.commit()
         await self.db.refresh(new_access)
         return new_access
 
-    async def update_access(self, access_entry: FarmAccess, access_level: AccessLevel) -> FarmAccess:
+    async def update_access(
+        self, access_entry: FarmAccess, access_level: AccessLevel
+    ) -> FarmAccess:
         access_entry.access_level = access_level
         await self.db.commit()
         await self.db.refresh(access_entry)
@@ -39,8 +39,7 @@ class AccessRepository(BaseRepository):
 
     async def delete_access(self, farm_id: str, user_id: str) -> int:
         query = delete(FarmAccess).filter(
-            FarmAccess.farm_id == farm_id,
-            FarmAccess.user_id == user_id
+            FarmAccess.farm_id == farm_id, FarmAccess.user_id == user_id
         )
         result = await self.db.execute(query)
         await self.db.commit()

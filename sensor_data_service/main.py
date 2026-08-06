@@ -11,10 +11,11 @@ from sensor_data_service.services.redis_service import RedisService
 
 logger = logging.getLogger(__name__)
 
+
 async def lifespan(app: FastAPI):
     """Application lifespan management: Init services"""
     settings = Settings()
-    
+
     # 1. Init Services
     influx_service = InfluxDBService(
         url=settings.INFLUXDB_URL,
@@ -28,7 +29,7 @@ async def lifespan(app: FastAPI):
         db=settings.REDIS_DB,
         password=settings.REDIS_PASSWORD,
     )
-    
+
     # 2. Connect & Start
     try:
         await redis_service.connect()
@@ -47,20 +48,22 @@ async def lifespan(app: FastAPI):
             password=settings.MQTT_PASSWORD,
             influx_service=influx_service,
             redis_service=redis_service,
-            client_id=unique_client_id
+            client_id=unique_client_id,
         )
         # Start in 'api' mode: Only publish, no background ingestion batching
         await mqtt_service.start(mode="api")
-        logger.info(f"Async MQTT Service started in API mode (Client ID: {unique_client_id}).")
+        logger.info(
+            f"Async MQTT Service started in API mode (Client ID: {unique_client_id})."
+        )
 
         # 3. Store in State
         app.state.influx_service = influx_service
         app.state.mqtt_service = mqtt_service
         app.state.redis_service = redis_service
         app.state.settings = settings
-        
+
         yield
-        
+
     except Exception as e:
         logger.error(f"Error during startup: {e}")
         raise
@@ -73,6 +76,7 @@ async def lifespan(app: FastAPI):
         if hasattr(app.state, "redis_service"):
             await app.state.redis_service.disconnect()
         logger.info("All services stopped.")
+
 
 app = FastAPI(lifespan=lifespan, root_path="/api/sensor-data")
 

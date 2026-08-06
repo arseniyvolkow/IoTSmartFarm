@@ -14,6 +14,7 @@ from rule_worker.services.stream_consumer import StreamConsumer
 
 logger = logging.getLogger(__name__)
 
+
 async def run_cache_reloader(interval_seconds: int = 30):
     """Periodically fetches rules from DB into memory."""
     logger.info(f"🔄 Starting cache reloader (every {interval_seconds}s)")
@@ -24,6 +25,7 @@ async def run_cache_reloader(interval_seconds: int = 30):
             logger.error(f"Error in cache reloader task: {e}")
         await asyncio.sleep(interval_seconds)
 
+
 async def run_periodic_evaluation(evaluator: RuleEvaluator, interval_seconds: int):
     """Run periodic evaluation for time-based rules."""
     logger.info(f"🔄 Starting periodic evaluation (every {interval_seconds}s)")
@@ -31,11 +33,12 @@ async def run_periodic_evaluation(evaluator: RuleEvaluator, interval_seconds: in
         try:
             async with get_db() as db_session:
                 await evaluator.evaluate_all_rules(db_session)
-            
+
             await asyncio.sleep(interval_seconds)
         except Exception as e:
             logger.error(f"Error in periodic evaluation task: {e}")
             await asyncio.sleep(10)
+
 
 async def run_rule_worker_daemon(interval_seconds: int = 60):
     """
@@ -66,7 +69,7 @@ async def run_rule_worker_daemon(interval_seconds: int = 60):
         context_builder = RuleContextBuilder(redis_service)
         evaluator = RuleEvaluator(action_executor, context_builder)
         stream_consumer = StreamConsumer(redis_service, evaluator)
-        
+
         logger.info("✅ RuleWorker components initialized")
 
         # 3. Initial load of the cache
@@ -76,7 +79,7 @@ async def run_rule_worker_daemon(interval_seconds: int = 60):
         tasks = [
             asyncio.create_task(run_periodic_evaluation(evaluator, interval_seconds)),
             asyncio.create_task(stream_consumer.listen_for_sensor_updates()),
-            asyncio.create_task(run_cache_reloader(30))
+            asyncio.create_task(run_cache_reloader(30)),
         ]
 
         await asyncio.gather(*tasks)

@@ -23,7 +23,6 @@ async def lifespan(app: FastAPI):
 app = FastAPI(root_path="/api/rule-service", lifespan=lifespan)
 
 
-
 app.include_router(rules.router)
 
 

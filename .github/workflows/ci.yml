@@ -7,28 +7,52 @@ on:
     branches: [ "main", "master" ]
 
 jobs:
-  test:
-    name: Run All Microservices Tests
+  lint:
+    name: Code Quality (Ruff)
     runs-on: ubuntu-latest
-
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Setup Environment Variables
-      run: cp example.env .env
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
 
-    - name: Build and Start Docker Containers
-      run: docker compose up -d --build
+      - name: Install Linting Dependencies
+        run: pip install ruff
 
-    - name: Wait for Containers to be Ready
-      run: sleep 15
+      - name: Run Ruff Lint
+        # Ignoring FastAPI's B008 (Depends in defaults) and general BLE001 (broad exceptions for background workers)
+        run: ruff check . --ignore B008,BLE001,S112,TRY401
 
-    - name: Run Pytest Suite via Docker
-      run: |
-        chmod +x run_tests_docker.sh
-        ./run_tests_docker.sh
+      - name: Run Ruff Format Check
+        run: ruff format --check .
 
-    - name: View Docker Logs on Failure
-      if: failure()
-      run: docker compose logs
+  test:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Environment Variables
+        run: cp .env.example .env
+
+      - name: Build and Start Docker Containers
+        # We start the entire infrastructure stack in detached mode
+        run: docker compose up -d --build
+
+      - name: Wait for Infrastructure to be Ready
+        # Wait for PostgreSQL, Redis, Mosquitto, and InfluxDB to initialize
+        run: sleep 20
+
+      - name: Run Complete Test Suite
+        # run_tests_docker.sh automatically executes pytest in each container and installs test deps
+        run: |
+          chmod +x run_tests_docker.sh
+          bash run_tests_docker.sh
+
+      - name: View Docker Logs on Failure
+        if: failure()
+        run: docker compose logs

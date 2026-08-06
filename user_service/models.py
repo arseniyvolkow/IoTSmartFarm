@@ -56,10 +56,8 @@ class Role(Base):
     )  # 'admin', 'manager'
 
     can_read_all: Mapped[bool] = mapped_column(Boolean, default=False)
-    can_write_all: Mapped[bool] = mapped_column(
-        Boolean, default=False
-    )
-    
+    can_write_all: Mapped[bool] = mapped_column(Boolean, default=False)
+
     # Двусторонняя связь с пользователями
     users: Mapped[list["User"]] = relationship(back_populates="role")
 

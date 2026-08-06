@@ -1,4 +1,3 @@
-
 from fastapi import HTTPException
 from starlette import status
 
@@ -15,17 +14,22 @@ class CropService:
         self.crop_repo = crop_repo
         self.access_service = access_service
 
-    async def check_access(self, entity, user: CurrentUser | str, required_level: AccessLevel = AccessLevel.READ):
+    async def check_access(
+        self,
+        entity,
+        user: CurrentUser | str,
+        required_level: AccessLevel = AccessLevel.READ,
+    ):
         user_id = user
-        
+
         # 1. Check Global Permissions (RBAC Override)
         if isinstance(user, CurrentUser):
             user_id = user.id
             g_perms = user.g_perms or {}
             if g_perms.get("w_all") is True:
-                return # Admin Write
+                return  # Admin Write
             if g_perms.get("r_all") is True and required_level == AccessLevel.READ:
-                return # Admin Read
+                return  # Admin Read
 
         # 2. Direct Ownership
         if entity.user_id == user_id:
@@ -33,7 +37,9 @@ class CropService:
 
         # 3. Farm Access
         if entity.farm_id:
-            has_perm = await self.access_service.has_access(entity.farm_id, user_id, required_level)
+            has_perm = await self.access_service.has_access(
+                entity.farm_id, user_id, required_level
+            )
             if has_perm:
                 return
 

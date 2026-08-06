@@ -12,6 +12,7 @@ from common.models.rule_enums import *
 def generate_uuid():
     return str(uuid.uuid4())
 
+
 class Rules(Base):
     __tablename__ = "rules"
 
@@ -48,6 +49,7 @@ class Rules(Base):
         "RuleActions", back_populates="rule", cascade="all, delete-orphan"
     )
 
+
 class RuleActions(Base):
     __tablename__ = "rule_actions"
 
@@ -60,9 +62,7 @@ class RuleActions(Base):
         Enum(RuleActionType, name="rule_action_type", create_type=True), nullable=False
     )
 
-    action_payload: Mapped[dict] = mapped_column(
-        JSON, nullable=False, default=dict
-    )
+    action_payload: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
 
     execution_order: Mapped[int] = mapped_column(default=1)
 

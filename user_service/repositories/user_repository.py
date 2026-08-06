@@ -1,4 +1,3 @@
-
 from sqlalchemy import select
 
 from common.repositories.base_repository import BaseRepository
@@ -21,6 +20,7 @@ class UserRepository(BaseRepository):
         await self.db.commit()
         await self.db.refresh(user)
         return user
+
 
 class RoleRepository(BaseRepository):
     async def get_by_name(self, name: str) -> Role | None:

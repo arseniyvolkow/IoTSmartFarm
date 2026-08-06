@@ -1,4 +1,3 @@
-
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -42,28 +41,32 @@ class UserService:
             first_name=new_user.first_name,
             last_name=new_user.last_name,
             middle_name=new_user.middle_name,
-            role_id=None
+            role_id=None,
         )
         return await self.user_repo.create(create_user_model)
 
     async def update_user(self, user_id: str, user_update: UserUpdate) -> User:
         """Обновление профиля пользователя."""
         user = await self.get_user_by_id(user_id)
-    
+
         # Обновление Email с проверкой на уникальность
-        if user_update.email is not None and user_update.email != user.email and await self.user_repo.get_by_email(user_update.email):
+        if (
+            user_update.email is not None
+            and user_update.email != user.email
+            and await self.user_repo.get_by_email(user_update.email)
+        ):
             raise HTTPException(400, "Email already in use")
-    
+
         # Обновление пароля
         hashed_password = user.hashed_password
         if user_update.password is not None:
             hashed_password = await hash_password(user_update.password)
-            
+
         kwargs = user_update.model_dump(exclude_unset=True)
         if "password" in kwargs:
             kwargs.pop("password")
             kwargs["hashed_password"] = hashed_password
-            
+
         return await self.user_repo.update(user, **kwargs)
 
     async def assign_role_to_user(self, user_id: str, role_name: str) -> User:

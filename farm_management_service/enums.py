@@ -6,12 +6,14 @@ class AccessLevel(PyEnum):
     WRITE = "write"
     ADMIN = "admin"
 
+
 class ActuatorState(PyEnum):
     ON = "on"
     OFF = "off"
     PAUSED = "paused"
     ERROR = "error"
     IDLE = "idle"
+
 
 class DeviceStatus(PyEnum):
     ACTIVE = "active"

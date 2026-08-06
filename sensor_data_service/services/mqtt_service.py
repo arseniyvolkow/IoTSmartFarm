@@ -7,14 +7,16 @@ import orjson
 
 logger = logging.getLogger(__name__)
 
+
 class AsyncMQTTService:
     """
     HIGH-THROUGHPUT MQTT SERVICE (CQRS READY)
     ----------------------------------------
     Handles high-volume sensor ingestion and actuator commanding.
-    Designed to work in different 'modes' to allow physical separation 
+    Designed to work in different 'modes' to allow physical separation
     of the API and the background worker.
     """
+
     def __init__(
         self,
         broker: str,
@@ -34,7 +36,7 @@ class AsyncMQTTService:
         self.client_id = client_id
         self.keepalive = keepalive
         self.reconnect_interval = reconnect_interval
-        
+
         self.influx_service = influx_service
         self.redis_service = redis_service
 
@@ -42,15 +44,15 @@ class AsyncMQTTService:
         self._connected = False
         self._running = False
         self.mode = "all"
-        
+
         # Async queues for decoupling producers from consumers
         # Using bounded queues to provide backpressure and prevent OOM (Exit 137) during stress tests
         self._publish_queue = asyncio.Queue(maxsize=10000)
         self._incoming_queue = asyncio.Queue(maxsize=50000)
-        
+
         # Internal tasks
         self._tasks: list[asyncio.Task] = []
-        
+
         # BATCHING TUNING: Processing 500 messages at once maximizes DB write speed
         self._batch_size = 500
         self._batch_timeout = 0.1
@@ -64,21 +66,21 @@ class AsyncMQTTService:
         """
         if self._running:
             return
-            
+
         self._running = True
         self.mode = mode
-        
+
         # 1. Main connection manager
         self._tasks.append(asyncio.create_task(self._connection_loop()))
-        
+
         # 2. Outgoing Loop (API)
         if self.mode in ["all", "api"]:
             self._tasks.append(asyncio.create_task(self._publish_loop()))
-            
+
         # 3. Ingestion Worker (Background)
         if self.mode in ["all", "ingestion"]:
             self._tasks.append(asyncio.create_task(self._batch_worker()))
-        
+
         logger.info(f"Async MQTT Service started (Mode: {self.mode})")
 
     async def stop(self):
@@ -145,26 +147,26 @@ class AsyncMQTTService:
         """Processes twin/get and twin/reported messages independently from batching."""
         try:
             topic = message.topic.value
-            parts = topic.split('/')
+            parts = topic.split("/")
             if len(parts) < 4:
                 return
-                
+
             device_id = parts[1]
             twin_action = parts[3]
-            
+
             if twin_action == "get":
                 # Fetch twin from Redis and reply
                 twin_data = await self.redis_service.get_device_twin(device_id)
                 reply_topic = f"device/{device_id}/twin"
-                await self.publish(reply_topic, orjson.dumps(twin_data).decode('utf-8'))
+                await self.publish(reply_topic, orjson.dumps(twin_data).decode("utf-8"))
                 logger.debug(f"Replied to twin/get for {device_id}")
-                
+
             elif twin_action == "reported":
                 # Update reported state in Redis
                 payload = orjson.loads(message.payload)
                 await self.redis_service.update_reported_state(device_id, payload)
                 logger.debug(f"Updated twin reported state for {device_id}")
-                
+
         except Exception as e:
             logger.error(f"Error handling twin message: {e}")
 
@@ -175,7 +177,9 @@ class AsyncMQTTService:
             try:
                 # Wait for the first message
                 try:
-                    message = await asyncio.wait_for(self._incoming_queue.get(), timeout=1.0)
+                    message = await asyncio.wait_for(
+                        self._incoming_queue.get(), timeout=1.0
+                    )
                     batch.append(message)
                 except asyncio.TimeoutError:
                     continue
@@ -183,15 +187,19 @@ class AsyncMQTTService:
                 # Accumulate more messages until batch is full or timeout reached
                 start_time = asyncio.get_event_loop().time()
                 while len(batch) < self._batch_size:
-                    time_left = self._batch_timeout - (asyncio.get_event_loop().time() - start_time)
+                    time_left = self._batch_timeout - (
+                        asyncio.get_event_loop().time() - start_time
+                    )
                     if time_left <= 0:
                         break
                     try:
-                        message = await asyncio.wait_for(self._incoming_queue.get(), timeout=time_left)
+                        message = await asyncio.wait_for(
+                            self._incoming_queue.get(), timeout=time_left
+                        )
                         batch.append(message)
                     except asyncio.TimeoutError:
                         break
-                
+
                 if batch:
                     # Offload to optimized processor
                     await self._process_batch(batch)
@@ -208,6 +216,7 @@ class AsyncMQTTService:
         --------------------------
         Optimized to handle 10,000+ messages per second.
         """
+
         def _parse_and_normalize():
             """
             CPU-intensive parsing offloaded to a thread pool.
@@ -218,25 +227,31 @@ class AsyncMQTTService:
             loads = orjson.loads
             results = []
             extend = results.extend
-            
+
             for message in batch:
                 try:
                     payload = loads(message.payload)
                     sensors_data = payload.get("sensors")
                     if not sensors_data:
                         continue
-                        
+
                     if type(sensors_data) is list:
                         extend(sensors_data)
                     elif type(sensors_data) is dict:
-                        extend([
-                            {
-                                "sensor_id": k,
-                                "sensor_type": v.get("sensor_type", k) if type(v) is dict and "value" in v else k,
-                                "value": v["value"] if type(v) is dict and "value" in v else v
-                            }
-                            for k, v in sensors_data.items()
-                        ])
+                        extend(
+                            [
+                                {
+                                    "sensor_id": k,
+                                    "sensor_type": v.get("sensor_type", k)
+                                    if type(v) is dict and "value" in v
+                                    else k,
+                                    "value": v["value"]
+                                    if type(v) is dict and "value" in v
+                                    else v,
+                                }
+                                for k, v in sensors_data.items()
+                            ]
+                        )
                 except Exception:
                     continue
             return results
@@ -249,7 +264,7 @@ class AsyncMQTTService:
             await asyncio.gather(
                 self._safe_save_influx(all_normalized_data),
                 self._safe_save_redis(all_normalized_data),
-                return_exceptions=True
+                return_exceptions=True,
             )
 
     async def _publish_loop(self):
@@ -257,7 +272,7 @@ class AsyncMQTTService:
         while self._running:
             try:
                 topic, payload, qos = await self._publish_queue.get()
-                
+
                 # Wait for network recovery if disconnected
                 while self._running and (not self._connected or not self.client):
                     await asyncio.sleep(0.5)

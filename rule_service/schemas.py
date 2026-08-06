@@ -10,7 +10,7 @@ class RuleActionPayload(BaseModel):
 
     # Add this configuration to explicitly allow any extra keys/values
     # that are not defined as fields in the model.
-    model_config = ConfigDict(extra='allow') 
+    model_config = ConfigDict(extra="allow")
 
 
 class RuleActionCreate(BaseModel):
@@ -71,4 +71,3 @@ class RuleRead(RuleBase):
     actions: list[RuleActionRead] = []
 
     model_config = ConfigDict(from_attributes=True)
-

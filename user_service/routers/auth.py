@@ -17,6 +17,8 @@ from user_service.schemas import (
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 print(f"DEBUG: TokenPair is {TokenPair}")
+
+
 @router.post(
     "/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED
 )
@@ -50,6 +52,4 @@ async def refresh_tokens(
     request: RefreshRequest,
     auth_service: AuthServiceDependency,
 ):
-    return await auth_service.refresh_access_token(request.refresh_token) 
-
-
+    return await auth_service.refresh_access_token(request.refresh_token)

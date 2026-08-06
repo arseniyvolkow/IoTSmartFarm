@@ -10,10 +10,11 @@ def test_validate_expression_valid():
     validator.validate_expression("temperature > 30")
     validator.validate_expression("humidity < 50 and temperature >= 25")
 
+
 def test_validate_expression_invalid():
     validator = RuleValidator()
     with pytest.raises(HTTPException) as exc:
         validator.validate_expression("invalid syntax > >")
-    
+
     assert exc.value.status_code == 400
     assert "Invalid rule expression" in exc.value.detail

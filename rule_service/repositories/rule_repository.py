@@ -1,4 +1,3 @@
-
 from sqlalchemy import select, text
 from sqlalchemy.orm import joinedload
 
@@ -8,13 +7,12 @@ from rule_service.repositories.base_repository import BaseRepository
 
 
 class RuleRepository(BaseRepository):
-    
     async def create(self, rule_entity: Rules) -> Rules:
         self.db.add(rule_entity)
         await self.db.commit()
         await self.db.refresh(rule_entity)
         return rule_entity
-        
+
     async def get_by_id(self, rule_id: str) -> Rules | None:
         query = (
             select(Rules)
@@ -23,12 +21,12 @@ class RuleRepository(BaseRepository):
         )
         result = await self.db.execute(query)
         return result.unique().scalar_one_or_none()
-        
+
     async def get_device_id_for_actuator(self, actuator_id: str) -> str | None:
         query = text("SELECT device_id FROM actuators WHERE actuator_id = :actuator_id")
         result = await self.db.execute(query, {"actuator_id": actuator_id})
         return result.scalar_one_or_none()
-        
+
     async def get_all(
         self,
         user_id: str,
@@ -41,7 +39,7 @@ class RuleRepository(BaseRepository):
     ):
         query = select(Rules).filter(Rules.user_id == user_id)
         query = query.options(joinedload(Rules.actions))
-        
+
         if farm_id:
             query = query.filter(Rules.farm_id == farm_id)
         if sensor_id:
@@ -53,6 +51,4 @@ class RuleRepository(BaseRepository):
             except ValueError:
                 pass
 
-        return await self.cursor_paginate(
-            self.db, query, sort_column, cursor, limit
-        )
+        return await self.cursor_paginate(self.db, query, sort_column, cursor, limit)

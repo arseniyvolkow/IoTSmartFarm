@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 
 # --- Endpoints ---
 
+
 @router.get("/health", status_code=status.HTTP_200_OK)
 async def health_check(
     influx_service: InfluxServiceDependency,
@@ -42,11 +43,12 @@ async def health_check(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Health check failed: {e!s}")
 
+
 @router.post(
-    "/simulate-sensor-data", 
+    "/simulate-sensor-data",
     status_code=status.HTTP_201_CREATED,
     # ЗАЩИТА: Только для тех, кто может писать данные сенсоров (или Админы)
-    dependencies=[Depends(CheckAccess("sensors", "write"))]
+    dependencies=[Depends(CheckAccess("sensors", "write"))],
 )
 async def simulate_sensor_data(
     data_batch: SensorDataBatch,
@@ -79,7 +81,7 @@ async def simulate_sensor_data(
 @router.get(
     "/sensor-value/{sensor_id}",
     # ЗАЩИТА: Чтение сенсоров
-    dependencies=[Depends(CheckAccess("sensors", "read"))]
+    dependencies=[Depends(CheckAccess("sensors", "read"))],
 )
 async def get_sensor_value(
     sensor_id: str,
@@ -89,7 +91,9 @@ async def get_sensor_value(
     try:
         value = await redis_service.get_sensor_value(sensor_id)
         if value is None:
-            raise HTTPException(status_code=404, detail="Sensor value not found in cache")
+            raise HTTPException(
+                status_code=404, detail="Sensor value not found in cache"
+            )
         return {"sensor_id": sensor_id, "value": value}
     except HTTPException:
         raise
@@ -100,7 +104,7 @@ async def get_sensor_value(
 @router.get(
     "/sensor-data/{sensor_id}/{time}",
     # ЗАЩИТА: Чтение сенсоров
-    dependencies=[Depends(CheckAccess("sensors", "read"))]
+    dependencies=[Depends(CheckAccess("sensors", "read"))],
 )
 async def get_timeseries_data_by_id(
     sensor_id: str,
@@ -118,14 +122,14 @@ async def get_timeseries_data_by_id(
                 "status": "success",
                 "sensor_id": sensor_id,
                 "data": cached_data,
-                "cached": True
+                "cached": True,
             }
 
         # 2. Cache miss: Query InfluxDB
         data_points = await influx_service.query_data_by_sensor_id(
             sensor_id=sensor_id, time_range=time
         )
-        
+
         if not data_points:
             raise HTTPException(
                 status_code=404,
@@ -139,7 +143,7 @@ async def get_timeseries_data_by_id(
             "status": "success",
             "sensor_id": sensor_id,
             "data": data_points,
-            "cached": False
+            "cached": False,
         }
     except HTTPException:
         raise
@@ -149,10 +153,10 @@ async def get_timeseries_data_by_id(
 
 
 @router.post(
-    "/actuator-mode-update", 
+    "/actuator-mode-update",
     status_code=status.HTTP_202_ACCEPTED,
     # ЗАЩИТА: Управление актуаторами (отдельный ресурс или тот же sensors:write)
-    dependencies=[Depends(CheckAccess("actuators", "write"))]
+    dependencies=[Depends(CheckAccess("actuators", "write"))],
 )
 async def actuator_mode_update(
     action_payload: ActuatorPayload,
@@ -163,10 +167,10 @@ async def actuator_mode_update(
         for actuator in action_payload.actuators_to_control:
             topic = f"actuator/{actuator.actuator_id}/command"
             tasks.append(mqtt_service.publish_mqtt_message(topic, actuator.command))
-        
+
         if tasks:
             await asyncio.gather(*tasks)
-            
+
     except Exception as e:
         logger.exception(f"Error updating actuators: {e}")
         raise HTTPException(status_code=500, detail=str(e))

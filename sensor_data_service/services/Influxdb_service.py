@@ -8,6 +8,7 @@ from influxdb_client.client.influxdb_client_async import InfluxDBClientAsync
 
 logger = logging.getLogger(__name__)
 
+
 class InfluxDBService:
     """
     Handles asynchronous communication with InfluxDB and manages its own lifecycle
@@ -62,16 +63,16 @@ class InfluxDBService:
         try:
             points = []
             timestamp = datetime.now(timezone.utc)
-            
+
             for sensor_data in sensor_data_list:
                 sensor_id = sensor_data.get("sensor_id")
                 sensor_type = sensor_data.get("sensor_type")
                 value = sensor_data.get("value")
-                
+
                 if not all([sensor_id, sensor_type, value is not None]):
                     logger.warning(f"Skipping invalid sensor data: {sensor_data}")
                     continue
-                
+
                 try:
                     point = (
                         Point("sensor_data")
@@ -82,7 +83,9 @@ class InfluxDBService:
                     )
                     points.append(point)
                 except ValueError as ve:
-                    logger.warning(f"Error converting value to float for sensor {sensor_id}: {ve}")
+                    logger.warning(
+                        f"Error converting value to float for sensor {sensor_id}: {ve}"
+                    )
                     continue
 
             if points:
@@ -90,7 +93,7 @@ class InfluxDBService:
                     bucket=self.bucket, org=self._org, record=points
                 )
                 logger.debug(f"Saved {len(points)} points to InfluxDB.")
-                
+
         except Exception as e:
             logger.error(f"Error saving batch to InfluxDB: {e}")
             raise
@@ -107,7 +110,7 @@ class InfluxDBService:
 
         # Map frontend time ranges to InfluxDB flux duration syntax
         valid_times = {"1h": "-1h", "24h": "-24h", "7d": "-7d", "30d": "-30d"}
-        
+
         if time_range not in valid_times:
             raise ValueError(
                 f"Invalid time range '{time_range}'. Valid options: {', '.join(valid_times.keys())}"
@@ -123,26 +126,28 @@ class InfluxDBService:
                 |> sort(columns: ["_time"], desc: true)
                 |> limit(n: 1000)
         """
-        
+
         try:
             result = await self.query_api.query(query, org=self._org)
             data_points = []
-            
+
             for table in result:
                 for record in table.records:
                     # Safely extract time
                     record_time = record.get_time()
                     time_str = record_time.isoformat() if record_time else None
-                    
-                    data_points.append({
-                        "time": time_str,
-                        "value": record.get_value(),
-                        "sensor_id": record.values.get("sensor_id"),
-                        "sensor_type": record.values.get("sensor_type"),
-                    })
-            
+
+                    data_points.append(
+                        {
+                            "time": time_str,
+                            "value": record.get_value(),
+                            "sensor_id": record.values.get("sensor_id"),
+                            "sensor_type": record.values.get("sensor_type"),
+                        }
+                    )
+
             return data_points
-            
+
         except Exception as e:
             logger.error(f"Error querying InfluxDB for sensor_id '{sensor_id}': {e}")
             raise
@@ -151,7 +156,7 @@ class InfluxDBService:
         """Check if InfluxDB is accessible and ready."""
         if not self.query_api:
             return False
-            
+
         try:
             query = f'buckets() |> filter(fn: (r) => r.name == "{self.bucket}") |> limit(n: 1)'
             await self.query_api.query(query, org=self._org)

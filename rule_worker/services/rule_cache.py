@@ -9,6 +9,7 @@ from rule_worker.database import get_db
 
 logger = logging.getLogger(__name__)
 
+
 class RuleCache:
     def __init__(self):
         self._sensor_rules: dict[str, list[Rules]] = {}
@@ -20,26 +21,33 @@ class RuleCache:
         """Fetch all active rules from the database and update the cache."""
         try:
             async with get_db() as db_session:
-                query = select(Rules).options(joinedload(Rules.actions)).where(Rules.is_active == True)
+                query = (
+                    select(Rules)
+                    .options(joinedload(Rules.actions))
+                    .where(Rules.is_active == True)
+                )
                 result = await db_session.execute(query)
                 rules = result.scalars().unique().all()
-                
+
                 sensor_rules: dict[str, list[Rules]] = {}
                 time_rules: list[Rules] = []
-                
+
                 for rule in rules:
-                    if rule.trigger_type == RuleTriggerType.SENSOR_THRESHOLD and rule.sensor_id:
+                    if (
+                        rule.trigger_type == RuleTriggerType.SENSOR_THRESHOLD
+                        and rule.sensor_id
+                    ):
                         if rule.sensor_id not in sensor_rules:
                             sensor_rules[rule.sensor_id] = []
                         sensor_rules[rule.sensor_id].append(rule)
                     elif rule.trigger_type == RuleTriggerType.TIME_BASED:
                         time_rules.append(rule)
-                        
+
                 async with self._lock:
                     self._sensor_rules = sensor_rules
                     self._time_rules = time_rules
                     self._all_rules = list(rules)
-                    
+
             logger.info(f"🔄 Rule Cache reloaded: {len(self._all_rules)} active rules.")
         except Exception as e:
             logger.error(f"❌ Failed to reload rule cache: {e}")
@@ -53,8 +61,10 @@ class RuleCache:
         """Get all time-based rules from the cache."""
         async with self._lock:
             return self._time_rules.copy()
-            
-    async def get_all_rules(self, trigger_type: RuleTriggerType | None = None) -> list[Rules]:
+
+    async def get_all_rules(
+        self, trigger_type: RuleTriggerType | None = None
+    ) -> list[Rules]:
         """Get all active rules, optionally filtered by trigger type."""
         async with self._lock:
             if trigger_type == RuleTriggerType.SENSOR_THRESHOLD:
@@ -65,6 +75,7 @@ class RuleCache:
             elif trigger_type == RuleTriggerType.TIME_BASED:
                 return self._time_rules.copy()
             return self._all_rules.copy()
+
 
 # Global singleton for the cache
 rule_cache = RuleCache()

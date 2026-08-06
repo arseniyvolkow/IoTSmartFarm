@@ -14,6 +14,7 @@ from rule_worker.services.redis_service import RedisService
 def mock_db_session():
     return AsyncMock(spec=AsyncSession)
 
+
 @pytest.fixture
 def mock_redis_service():
     service = AsyncMock(spec=RedisService)
@@ -22,15 +23,18 @@ def mock_redis_service():
     service.get = AsyncMock(return_value="15")
     return service
 
+
 @pytest.fixture
 def mock_action_executor(mock_redis_service):
     executor = ActionExecutor(mock_redis_service)
     executor.execute = AsyncMock(return_value=True)
     return executor
 
+
 @pytest.fixture
 def context_builder(mock_redis_service):
     return RuleContextBuilder(mock_redis_service)
+
 
 @pytest.fixture
 def sample_rule():
@@ -42,17 +46,18 @@ def sample_rule():
         sensor_id="sensor_1",
         rule_expression="value > 10",
         cooldown_seconds=60,
-        last_triggered_at=None
+        last_triggered_at=None,
     )
     action = RuleActions(
         action_id="action_1",
         rule_id="test_rule_1",
         action_type=RuleActionType.LOG_EVENT,
         action_payload={"message": "High value detected"},
-        execution_order=1
+        execution_order=1,
     )
     rule.actions = [action]
     return rule
+
 
 @pytest.fixture
 def sample_time_rule():
@@ -64,7 +69,7 @@ def sample_time_rule():
         sensor_id=None,
         rule_expression="hour == 8",
         cooldown_seconds=60,
-        last_triggered_at=None
+        last_triggered_at=None,
     )
     rule.actions = []
     return rule

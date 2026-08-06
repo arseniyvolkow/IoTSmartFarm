@@ -1,4 +1,3 @@
-
 from sqlalchemy import or_, select, update
 from sqlalchemy.orm import joinedload
 
@@ -33,7 +32,9 @@ class SensorRepository(BaseRepository):
         result = await self.db.execute(query)
         return result.scalar_one_or_none()
 
-    async def get_all_sensors(self, user_id: str, sort_column: str, cursor: str | None = None, limit: int = 10):
+    async def get_all_sensors(
+        self, user_id: str, sort_column: str, cursor: str | None = None, limit: int = 10
+    ):
         query = (
             select(Sensors)
             .join(Devices, Sensors.device_id == Devices.device_id)
@@ -42,7 +43,7 @@ class SensorRepository(BaseRepository):
                 or_(
                     Devices.user_id == user_id,
                     Sensors.user_id == user_id,
-                    FarmAccess.user_id == user_id
+                    FarmAccess.user_id == user_id,
                 )
             )
             .distinct()

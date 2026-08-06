@@ -1,4 +1,3 @@
-
 from sqlalchemy import or_, select
 from sqlalchemy.orm import joinedload, selectinload
 
@@ -9,9 +8,10 @@ from farm_management_service.schemas import DeviceCreate
 
 class DeviceRepository(BaseRepository):
     async def get_by_id(self, device_id: str) -> Devices | None:
-        query = select(Devices).filter(Devices.device_id == device_id).options(
-            selectinload(Devices.sensors),
-            selectinload(Devices.actuators)
+        query = (
+            select(Devices)
+            .filter(Devices.device_id == device_id)
+            .options(selectinload(Devices.sensors), selectinload(Devices.actuators))
         )
         result = await self.db.execute(query)
         return result.scalar_one_or_none()
@@ -48,7 +48,9 @@ class DeviceRepository(BaseRepository):
     async def refresh(self, entity):
         await self.db.refresh(entity)
 
-    async def get_unassigned_to_user_devices(self, sort_column: str, cursor: str | None = None, limit: int = 10):
+    async def get_unassigned_to_user_devices(
+        self, sort_column: str, cursor: str | None = None, limit: int = 10
+    ):
         query = (
             select(Devices)
             .filter(Devices.user_id.is_(None))
@@ -56,7 +58,9 @@ class DeviceRepository(BaseRepository):
         )
         return await self.cursor_paginate(self.db, query, sort_column, cursor, limit)
 
-    async def get_unassigned_to_farm_devices(self, user_id: str, sort_column: str, cursor: str | None = None, limit: int = 10):
+    async def get_unassigned_to_farm_devices(
+        self, user_id: str, sort_column: str, cursor: str | None = None, limit: int = 10
+    ):
         query = (
             select(Devices)
             .filter(Devices.user_id == user_id, Devices.farm_id.is_(None))
@@ -64,27 +68,30 @@ class DeviceRepository(BaseRepository):
         )
         return await self.cursor_paginate(self.db, query, sort_column, cursor, limit)
 
-    async def get_user_devices(self, user_id: str, sort_column: str, farm_id: str | None = None, cursor: str | None = None, limit: int = 10):
+    async def get_user_devices(
+        self,
+        user_id: str,
+        sort_column: str,
+        farm_id: str | None = None,
+        cursor: str | None = None,
+        limit: int = 10,
+    ):
         query = select(Devices).options(
             selectinload(Devices.sensors), selectinload(Devices.actuators)
         )
-        
+
         if farm_id:
             query = query.filter(Devices.farm_id == farm_id)
             query = query.outerjoin(FarmAccess, Devices.farm_id == FarmAccess.farm_id)
             query = query.filter(
-                or_(
-                    Devices.user_id == user_id,
-                    FarmAccess.user_id == user_id
-                )
+                or_(Devices.user_id == user_id, FarmAccess.user_id == user_id)
             )
         else:
             query = query.outerjoin(FarmAccess, Devices.farm_id == FarmAccess.farm_id)
             query = query.filter(
-                or_(
-                    Devices.user_id == user_id,
-                    FarmAccess.user_id == user_id
-                )
+                or_(Devices.user_id == user_id, FarmAccess.user_id == user_id)
             )
 
-        return await self.cursor_paginate(self.db, query.distinct(), sort_column, cursor, limit)
+        return await self.cursor_paginate(
+            self.db, query.distinct(), sort_column, cursor, limit
+        )

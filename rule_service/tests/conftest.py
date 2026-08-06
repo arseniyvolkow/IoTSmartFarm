@@ -15,12 +15,13 @@ TestingSessionLocal = async_sessionmaker(
     bind=engine, class_=AsyncSession, expire_on_commit=False
 )
 
+
 def get_test_user():
     return CurrentUser(sub="test_user_id", email="test@example.com", role="admin")
 
+
 async def override_get_current_user_identity():
     return get_test_user()
-
 
 
 @pytest_asyncio.fixture(scope="function", autouse=True)
@@ -31,10 +32,12 @@ async def init_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
 
+
 @pytest_asyncio.fixture(scope="function")
 async def db_session():
     async with TestingSessionLocal() as session:
         yield session
+
 
 @pytest_asyncio.fixture(scope="function")
 async def client(db_session):
@@ -42,9 +45,12 @@ async def client(db_session):
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
-    app.dependency_overrides[get_current_user_identity] = override_get_current_user_identity
-    
+    app.dependency_overrides[get_current_user_identity] = (
+        override_get_current_user_identity
+    )
+
     from contextlib import asynccontextmanager
+
     @asynccontextmanager
     async def mock_lifespan(app):
         yield
@@ -56,10 +62,14 @@ async def client(db_session):
         yield ac
     app.dependency_overrides.clear()
 
+
 @pytest_asyncio.fixture(scope="session", autouse=True)
 async def cleanup_engine():
     yield
     # Removed dispose as it causes hanging with pytest-timeout
+
+
 def pytest_sessionfinish(session, exitstatus):
     import os
+
     os._exit(exitstatus)

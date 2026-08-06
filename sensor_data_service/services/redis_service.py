@@ -6,6 +6,7 @@ import redis.asyncio as redis_client
 
 logger = logging.getLogger(__name__)
 
+
 class RedisService:
     def __init__(self, host: str, port: int, db: int, password: str | None = None):
         self._host = host
@@ -23,7 +24,7 @@ class RedisService:
                 db=self._db,
                 password=self.password,
                 decode_responses=True,
-                socket_timeout=5.0
+                socket_timeout=5.0,
             )
             await self.client.ping()
             logger.info(f"✅ Connected to Redis at {self._host}:{self._port}")
@@ -81,11 +82,13 @@ class RedisService:
             logger.error(f"Error getting value for key '{key}': {e}")
             raise
 
-    async def get_cached_history(self, sensor_id: str, time_range: str) -> list[dict[str, Any]] | None:
+    async def get_cached_history(
+        self, sensor_id: str, time_range: str
+    ) -> list[dict[str, Any]] | None:
         """Retrieve cached InfluxDB history to save CPU and DB load."""
         if not self.client:
             return None
-            
+
         redis_key = f"history:{sensor_id}:{time_range}"
         try:
             cached_data = await self.client.get(redis_key)
@@ -96,15 +99,17 @@ class RedisService:
             logger.error(f"Error reading cache for history {redis_key}: {e}")
             return None
 
-    async def set_cached_history(self, sensor_id: str, time_range: str, data: list[dict[str, Any]], ttl: int = 15):
+    async def set_cached_history(
+        self, sensor_id: str, time_range: str, data: list[dict[str, Any]], ttl: int = 15
+    ):
         """Cache InfluxDB history for a short duration (default 15s) using fast orjson."""
         if not self.client:
             return
-            
+
         redis_key = f"history:{sensor_id}:{time_range}"
         try:
             # decode() because orjson.dumps returns bytes, but our redis_client has decode_responses=True
-            json_data = orjson.dumps(data).decode('utf-8')
+            json_data = orjson.dumps(data).decode("utf-8")
             await self.client.setex(redis_key, ttl, json_data)
         except Exception as e:
             logger.error(f"Error caching history for {redis_key}: {e}")
@@ -123,40 +128,41 @@ class RedisService:
             # Используем Pipeline для отправки всех команд за один раз
             async with self.client.pipeline() as pipe:
                 for sensor_data in sensor_data_list:
-                    sensor_id = sensor_data['sensor_id']
+                    sensor_id = sensor_data["sensor_id"]
                     sensor_key = f"sensor:{sensor_id}"
                     value = str(sensor_data["value"])
-                    
+
                     # Обновляем значение
                     pipe.set(sensor_key, value)
-                    
+
                     # Публикуем событие об обновлении в Redis Stream
                     # Payload: {"sensor_id": "...", "value": ...}
                     # Using orjson for speed, decoding to string for the pipeline
-                    event_payload = orjson.dumps({
-                        "sensor_id": sensor_id,
-                        "value": sensor_data["value"]
-                    }).decode('utf-8')
-                    
+                    event_payload = orjson.dumps(
+                        {"sensor_id": sensor_id, "value": sensor_data["value"]}
+                    ).decode("utf-8")
+
                     # Изменили publish на xadd (Redis Streams)
                     pipe.xadd("sensor_updates", {"data": event_payload})
-                
+
                 # Выполняем все команды скопом
                 await pipe.execute()
-                
-            logger.debug(f"Successfully cached and published {len(sensor_data_list)} sensor readings via pipeline.")
-            
+
+            logger.debug(
+                f"Successfully cached and published {len(sensor_data_list)} sensor readings via pipeline."
+            )
+
         except Exception as e:
             logger.error(f"Error updating Redis cache from batch: {e}")
             raise
 
     # --- Device Twin Methods ---
-    
+
     async def get_device_twin(self, device_id: str) -> dict[str, Any]:
         """Fetch the full device twin, or return an empty structure if not exists."""
         if not self.client:
             return {"desired": {}, "reported": {}}
-            
+
         key = f"twin:{device_id}"
         try:
             data = await self.client.get(key)
@@ -164,24 +170,26 @@ class RedisService:
                 return orjson.loads(data)
         except Exception as e:
             logger.error(f"Error getting twin for {device_id}: {e}")
-            
+
         return {"desired": {}, "reported": {}}
 
-    async def _update_twin_block(self, device_id: str, block_name: str, state_dict: dict[str, Any]):
+    async def _update_twin_block(
+        self, device_id: str, block_name: str, state_dict: dict[str, Any]
+    ):
         """Helper to update either 'desired' or 'reported' blocks of the twin."""
         if not self.client:
             return
-            
+
         key = f"twin:{device_id}"
         try:
             # We use a Redis transaction (WATCH) or just fetch, update, set.
             # For this simple implementation, fetch-update-set is fine.
             twin = await self.get_device_twin(device_id)
-            
+
             # Merge the new state dictionary into the specified block
             twin[block_name].update(state_dict)
-            
-            await self.client.set(key, orjson.dumps(twin).decode('utf-8'))
+
+            await self.client.set(key, orjson.dumps(twin).decode("utf-8"))
             logger.debug(f"Updated twin {block_name} for {device_id}: {state_dict}")
         except Exception as e:
             logger.error(f"Error updating twin block {block_name} for {device_id}: {e}")
@@ -189,7 +197,7 @@ class RedisService:
     async def update_desired_state(self, device_id: str, state_dict: dict[str, Any]):
         """Update the desired state of actuators."""
         await self._update_twin_block(device_id, "desired", state_dict)
-        
+
     async def update_reported_state(self, device_id: str, state_dict: dict[str, Any]):
         """Update the reported state from the edge device."""
         await self._update_twin_block(device_id, "reported", state_dict)

@@ -1,4 +1,3 @@
-
 from sqlalchemy import or_, select
 from sqlalchemy.orm import joinedload
 
@@ -18,9 +17,9 @@ class FarmRepository(BaseRepository):
             select(Farms)
             .filter(Farms.farm_id == farm_id)
             .options(
-                joinedload(Farms.devices), 
+                joinedload(Farms.devices),
                 joinedload(Farms.crop_management_entries),
-                joinedload(Farms.access_entries)
+                joinedload(Farms.access_entries),
             )
         )
         result = await self.db.execute(query)
@@ -36,15 +35,9 @@ class FarmRepository(BaseRepository):
         query = (
             select(Farms)
             .outerjoin(FarmAccess, Farms.farm_id == FarmAccess.farm_id)
-            .filter(
-                or_(
-                    Farms.user_id == user_id,
-                    FarmAccess.user_id == user_id
-                )
-            )
+            .filter(or_(Farms.user_id == user_id, FarmAccess.user_id == user_id))
             .options(
-                joinedload(Farms.devices), 
-                joinedload(Farms.crop_management_entries)
+                joinedload(Farms.devices), joinedload(Farms.crop_management_entries)
             )
             .distinct()
         )

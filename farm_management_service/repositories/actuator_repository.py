@@ -1,4 +1,3 @@
-
 from sqlalchemy import or_, select, update
 from sqlalchemy.orm import joinedload
 
@@ -8,7 +7,9 @@ from farm_management_service.schemas import ActuatorBase
 
 
 class ActuatorRepository(BaseRepository):
-    def add_actuators_to_session(self, device_id: str, actuators_list: list[ActuatorBase]):
+    def add_actuators_to_session(
+        self, device_id: str, actuators_list: list[ActuatorBase]
+    ):
         if not actuators_list:
             return
 
@@ -31,7 +32,9 @@ class ActuatorRepository(BaseRepository):
         result = await self.db.execute(query)
         return result.scalar_one_or_none()
 
-    async def get_all_actuators(self, user_id: str, sort_column: str, cursor: str | None = None, limit: int = 10):
+    async def get_all_actuators(
+        self, user_id: str, sort_column: str, cursor: str | None = None, limit: int = 10
+    ):
         query = (
             select(Actuators)
             .join(Devices, Actuators.device_id == Devices.device_id)
@@ -40,7 +43,7 @@ class ActuatorRepository(BaseRepository):
                 or_(
                     Devices.user_id == user_id,
                     Actuators.user_id == user_id,
-                    FarmAccess.user_id == user_id
+                    FarmAccess.user_id == user_id,
                 )
             )
             .distinct()

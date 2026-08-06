@@ -11,8 +11,6 @@ SQLALCHEMY_DATABASE_URL = (
 )
 
 
-
-
 engine = create_async_engine(
     SQLALCHEMY_DATABASE_URL,
     pool_size=50,
@@ -20,11 +18,17 @@ engine = create_async_engine(
     pool_timeout=30,
     pool_recycle=1800,
 )
-AsyncSessionLocal = async_sessionmaker(autocommit=False, autoflush=False, bind=engine,class_=AsyncSession,)
+AsyncSessionLocal = async_sessionmaker(
+    autocommit=False,
+    autoflush=False,
+    bind=engine,
+    class_=AsyncSession,
+)
 
 
 class Base(DeclarativeBase):
     pass
+
 
 async def get_db():
     db = AsyncSessionLocal()

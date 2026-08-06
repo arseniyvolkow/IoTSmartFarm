@@ -12,17 +12,21 @@ from rule_service.services.rules_service import RulesService
 
 db_dependency = Annotated[AsyncSession, Depends(get_db)]
 
+
 def get_rule_repository(db: db_dependency) -> RuleRepository:
     return RuleRepository(db)
+
 
 def get_rule_validator() -> RuleValidator:
     return RuleValidator()
 
+
 async def get_rules_service(
     repo: RuleRepository = Depends(get_rule_repository),
-    validator: RuleValidator = Depends(get_rule_validator)
+    validator: RuleValidator = Depends(get_rule_validator),
 ) -> RulesService:
     return RulesService(repo, validator)
+
 
 CurrentUserDependency = Annotated[CurrentUser, Depends(get_current_user_identity)]
 RulesServiceDependency = Annotated[RulesService, Depends(get_rules_service)]
