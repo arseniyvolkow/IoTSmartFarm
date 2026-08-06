@@ -1,5 +1,6 @@
-import redis.asyncio as redis
 import os
+
+import redis.asyncio as redis
 
 # Create a connection pool for better performance under load
 # max_connections prevents the system from being overwhelmed

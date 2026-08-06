@@ -1,12 +1,13 @@
+
 from fastapi import HTTPException
 from starlette import status
+
+from common.auth.schemas import CurrentUser
+from farm_management_service.enums import AccessLevel
 from farm_management_service.models import CropManagement
+from farm_management_service.repositories.crop_repository import CropRepository
 from farm_management_service.schemas import CropManagmentCreate
 from farm_management_service.services.access_service import AccessService
-from farm_management_service.repositories.crop_repository import CropRepository
-from farm_management_service.enums import AccessLevel
-from typing import Union
-from common.schemas import CurrentUser
 
 
 class CropService:
@@ -14,7 +15,7 @@ class CropService:
         self.crop_repo = crop_repo
         self.access_service = access_service
 
-    async def check_access(self, entity, user: Union[CurrentUser, str], required_level: AccessLevel = AccessLevel.READ):
+    async def check_access(self, entity, user: CurrentUser | str, required_level: AccessLevel = AccessLevel.READ):
         user_id = user
         
         # 1. Check Global Permissions (RBAC Override)

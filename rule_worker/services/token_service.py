@@ -1,8 +1,8 @@
+import logging
 import os
 import time
+
 import jwt
-import logging
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +19,7 @@ class TokenService:
         if not self.secret_key:
             logger.error("SECRET_KEY not found in environment variables. Actions requiring auth will fail.")
 
-    def generate_service_token(self, expires_in: int = 60) -> Optional[str]:
+    def generate_service_token(self, expires_in: int = 60) -> str | None:
         """
         Generates a short-lived JWT token with administrative permissions
         to allow internal service-to-service communication.

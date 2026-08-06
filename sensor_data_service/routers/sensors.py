@@ -1,16 +1,20 @@
 import asyncio
 import logging
-from fastapi import APIRouter, HTTPException, status, Depends
 
+from fastapi import APIRouter, Depends, HTTPException, status
+
+# Импорты безопасности (Из Common Lib)
+from common.auth.security import CheckAccess
+
+# Импорты зависимостей (Наш новый файл)
+from sensor_data_service.dependencies import (
+    InfluxServiceDependency,
+    MQTTServiceDependency,
+    RedisServiceDependency,
+)
 
 # Импорты схем
 from sensor_data_service.schemas import ActuatorPayload, SensorDataBatch
-
-# Импорты зависимостей (Наш новый файл)
-from sensor_data_service.dependencies import InfluxServiceDependency, RedisServiceDependency, MQTTServiceDependency
-
-# Импорты безопасности (Из Common Lib)
-from common.security import CheckAccess
 
 router = APIRouter(tags=["Sensor Data"])
 logger = logging.getLogger(__name__)
@@ -36,7 +40,7 @@ async def health_check(
             "redis_status": redis_status,
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Health check failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Health check failed: {e!s}")
 
 @router.post(
     "/simulate-sensor-data", 

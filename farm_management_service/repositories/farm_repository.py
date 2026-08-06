@@ -1,8 +1,10 @@
-from farm_management_service.repositories.base_repository import BaseRepository
-from farm_management_service.models import Farms, FarmAccess
-from sqlalchemy import select, or_
+
+from sqlalchemy import or_, select
 from sqlalchemy.orm import joinedload
-from typing import Optional
+
+from farm_management_service.models import FarmAccess, Farms
+from farm_management_service.repositories.base_repository import BaseRepository
+
 
 class FarmRepository(BaseRepository):
     async def create(self, farm_entity: Farms) -> Farms:
@@ -11,7 +13,7 @@ class FarmRepository(BaseRepository):
         await self.db.refresh(farm_entity)
         return farm_entity
 
-    async def get_by_id(self, farm_id: str) -> Optional[Farms]:
+    async def get_by_id(self, farm_id: str) -> Farms | None:
         query = (
             select(Farms)
             .filter(Farms.farm_id == farm_id)
@@ -28,7 +30,7 @@ class FarmRepository(BaseRepository):
         self,
         user_id: str,
         sort_column: str,
-        cursor: Optional[str] = None,
+        cursor: str | None = None,
         limit: int = 10,
     ):
         query = (

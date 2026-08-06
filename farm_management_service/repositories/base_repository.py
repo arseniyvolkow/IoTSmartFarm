@@ -1,17 +1,18 @@
-from fastapi import HTTPException, status
-from typing import Optional, Union
 import abc
-from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime
+
+from fastapi import HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.types import DateTime
-from common.schemas import CurrentUser
+
+from common.auth.schemas import CurrentUser
 
 
 class BaseRepository(abc.ABC):
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def check_access(self, entity, user: Union[CurrentUser, str]):
+    async def check_access(self, entity, user: CurrentUser | str):
         """
         Checks if the user has access to the entity.
         Prioritizes Global RBAC permissions (g_perms) if User object is provided.
@@ -48,8 +49,8 @@ class BaseRepository(abc.ABC):
         self,
         session,
         query,
-        sort_column: Optional[str] = None,
-        cursor: Optional[str] = None,
+        sort_column: str | None = None,
+        cursor: str | None = None,
         limit: int = 10,
     ):
         try:

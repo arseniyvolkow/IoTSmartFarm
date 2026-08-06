@@ -1,12 +1,14 @@
-from farm_management_service.repositories.base_repository import BaseRepository
-from farm_management_service.models import Sensors, Devices, FarmAccess
+
+from sqlalchemy import or_, select, update
 from sqlalchemy.orm import joinedload
-from sqlalchemy import select, update, or_
-from typing import List, Optional
+
+from farm_management_service.models import Devices, FarmAccess, Sensors
+from farm_management_service.repositories.base_repository import BaseRepository
 from farm_management_service.schemas import SensorBase
 
+
 class SensorRepository(BaseRepository):
-    def add_sensors_to_session(self, device_id: str, sensors_list: List[SensorBase]):
+    def add_sensors_to_session(self, device_id: str, sensors_list: list[SensorBase]):
         if not sensors_list:
             return
 
@@ -22,7 +24,7 @@ class SensorRepository(BaseRepository):
         ]
         self.db.add_all(sensor_entities)
 
-    async def get_by_id(self, sensor_id: str) -> Optional[Sensors]:
+    async def get_by_id(self, sensor_id: str) -> Sensors | None:
         query = (
             select(Sensors)
             .filter(Sensors.sensor_id == sensor_id)
@@ -31,7 +33,7 @@ class SensorRepository(BaseRepository):
         result = await self.db.execute(query)
         return result.scalar_one_or_none()
 
-    async def get_all_sensors(self, user_id: str, sort_column: str, cursor: Optional[str] = None, limit: int = 10):
+    async def get_all_sensors(self, user_id: str, sort_column: str, cursor: str | None = None, limit: int = 10):
         query = (
             select(Sensors)
             .join(Devices, Sensors.device_id == Devices.device_id)

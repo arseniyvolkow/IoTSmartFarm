@@ -1,5 +1,6 @@
 from enum import Enum as PyEnum
 
+
 class RuleTriggerType(PyEnum):
     """Defines how a rule is primarily triggered/evaluated."""
     SENSOR_THRESHOLD = "sensor_threshold"

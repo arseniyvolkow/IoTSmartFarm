@@ -1,5 +1,7 @@
-from pydantic import BaseModel, Field, ConfigDict
-from typing import Dict, Optional, Any
+from typing import Any
+
+from pydantic import BaseModel, ConfigDict, Field
+
 
 class CurrentUser(BaseModel):
     """
@@ -7,15 +9,15 @@ class CurrentUser(BaseModel):
     Создается на основе JWT токена.
     """
     id: str = Field(alias="sub")
-    email: Optional[str] = None
+    email: str | None = None
     role: str = "guest"
     
     # Права доступа (храним как есть)
-    g_perms: Dict[str, bool] = Field(default_factory=dict)
-    access: Dict[str, Any] = Field(default_factory=dict)
+    g_perms: dict[str, bool] = Field(default_factory=dict)
+    access: dict[str, Any] = Field(default_factory=dict)
 
     # Полный payload (на случай если нужно что-то специфичное)
-    raw_payload: Dict[str, Any] = Field(default_factory=dict, exclude=True)
+    raw_payload: dict[str, Any] = Field(default_factory=dict, exclude=True)
 
     # FIX: Updated class-based Config to ConfigDict for Pydantic V2
     model_config = ConfigDict(

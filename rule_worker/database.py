@@ -1,5 +1,7 @@
-from common.rule_database import Base, engine, AsyncSessionLocal
 from contextlib import asynccontextmanager
+
+from common.database.rule_database import AsyncSessionLocal
+
 
 @asynccontextmanager
 async def get_db():

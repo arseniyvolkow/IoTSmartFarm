@@ -181,3 +181,24 @@ postgresql_device_database
 postgresql_user_database
 
 load_test
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# IDEs and Editors
+.idea/
+.vscode/
+*.swp
+*.swo
+*.swn
+
+# Test and Output
+pytest_out.txt
+*_out.txt

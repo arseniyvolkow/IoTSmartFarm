@@ -1,11 +1,18 @@
+
 import pytest
-from unittest.mock import MagicMock, patch
 from fastapi import HTTPException, status
-from user_service.dependencies import get_current_user, get_user_service, get_auth_service, get_rbac_service
-from user_service.services.user_service import UserService
+
+from user_service.dependencies import (
+    get_auth_service,
+    get_current_user,
+    get_rbac_service,
+    get_user_service,
+)
+from user_service.models import User
 from user_service.services.auth_service import AuthService
 from user_service.services.rbac_service import RBACService
-from user_service.models import User
+from user_service.services.user_service import UserService
+
 
 @pytest.mark.asyncio
 async def test_get_current_user_success(db_session):

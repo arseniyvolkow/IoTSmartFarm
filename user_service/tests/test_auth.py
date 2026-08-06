@@ -1,9 +1,11 @@
+from unittest.mock import patch
+
+import fakeredis.aioredis
 import pytest
 from fastapi import status
-from unittest.mock import patch
-import fakeredis.aioredis
+
+from common.auth.security import get_token_payload
 from user_service.main import app
-from common.security import get_token_payload
 
 # Base payload matching the UserRegister schema requirements
 VALID_USER_DATA = {
@@ -22,7 +24,7 @@ def mock_redis_client():
     This prevents 'ConnectionError' during logout and refresh tests.
     """
     fake_redis = fakeredis.aioredis.FakeRedis(decode_responses=True)
-    with patch("common.redis_config.redis_client", fake_redis):
+    with patch("common.database.redis_config.redis_client", fake_redis):
         yield fake_redis
 
 @pytest.mark.asyncio
@@ -80,7 +82,7 @@ async def test_logout_api(client):
 async def test_refresh_tokens_api(client, user_service, auth_service):
     """Test POST /auth/refresh to get a new token pair."""
     # 1. Setup: Create user and get a real refresh token
-    from user_service.schemas import UserRegister, UserLogin
+    from user_service.schemas import UserLogin, UserRegister
     await user_service.create_user(UserRegister(**VALID_USER_DATA))
     login_result = await auth_service.login_user(UserLogin(
         email=VALID_USER_DATA["email"], 

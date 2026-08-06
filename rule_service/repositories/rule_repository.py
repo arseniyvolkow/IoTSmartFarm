@@ -1,9 +1,11 @@
-from rule_service.repositories.base_repository import BaseRepository
-from common.rule_models import Rules
+
 from sqlalchemy import select, text
 from sqlalchemy.orm import joinedload
-from typing import Optional
-from common.rule_enums import RuleTriggerType
+
+from common.models.rule_enums import RuleTriggerType
+from common.models.rule_models import Rules
+from rule_service.repositories.base_repository import BaseRepository
+
 
 class RuleRepository(BaseRepository):
     
@@ -13,16 +15,16 @@ class RuleRepository(BaseRepository):
         await self.db.refresh(rule_entity)
         return rule_entity
         
-    async def get_by_id(self, rule_id: str) -> Optional[Rules]:
+    async def get_by_id(self, rule_id: str) -> Rules | None:
         query = (
             select(Rules)
             .filter(Rules.rule_id == rule_id)
             .options(joinedload(Rules.actions))
         )
         result = await self.db.execute(query)
-        return result.scalar_one_or_none()
+        return result.unique().scalar_one_or_none()
         
-    async def get_device_id_for_actuator(self, actuator_id: str) -> Optional[str]:
+    async def get_device_id_for_actuator(self, actuator_id: str) -> str | None:
         query = text("SELECT device_id FROM actuators WHERE actuator_id = :actuator_id")
         result = await self.db.execute(query, {"actuator_id": actuator_id})
         return result.scalar_one_or_none()
@@ -31,10 +33,10 @@ class RuleRepository(BaseRepository):
         self,
         user_id: str,
         sort_column: str,
-        farm_id: Optional[str] = None,
-        sensor_id: Optional[str] = None,
-        trigger_type: Optional[str] = None,
-        cursor: Optional[str] = None,
+        farm_id: str | None = None,
+        sensor_id: str | None = None,
+        trigger_type: str | None = None,
+        cursor: str | None = None,
         limit: int = 10,
     ):
         query = select(Rules).filter(Rules.user_id == user_id)

@@ -1,9 +1,9 @@
-from typing import Optional
+from datetime import datetime
+
 from pydantic import BaseModel, ConfigDict
-from datetime import  datetime
-from enum import Enum as PyEnum
-from typing import Optional, List
-from common.rule_enums import *
+
+from common.models.rule_enums import *
+
 
 class RuleActionPayload(BaseModel):
     """A generic model for the action payload (e.g., recipient, MQTT topic)."""
@@ -33,10 +33,10 @@ class RuleBase(BaseModel):
     """Base model for shared rule fields."""
 
     rule_name: str
-    description: Optional[str] = None
+    description: str | None = None
     trigger_type: RuleTriggerType
-    sensor_id: Optional[str] = None
-    device_id: Optional[str] = None
+    sensor_id: str | None = None
+    device_id: str | None = None
     rule_expression: str
     cooldown_seconds: int = 0
     is_active: bool = True
@@ -46,17 +46,17 @@ class RuleCreate(RuleBase):
     """Model for creating a new rule."""
 
     farm_id: str
-    actions: List[RuleActionCreate]
+    actions: list[RuleActionCreate]
 
 
 class RuleUpdate(BaseModel):
     """Model for updating an existing rule."""
 
-    rule_name: Optional[str] = None
-    description: Optional[str] = None
-    rule_expression: Optional[str] = None
-    cooldown_seconds: Optional[int] = None
-    is_active: Optional[bool] = None
+    rule_name: str | None = None
+    description: str | None = None
+    rule_expression: str | None = None
+    cooldown_seconds: int | None = None
+    is_active: bool | None = None
     # Note: Trigger type, sensor_id, and device_id are typically not updated directly
 
 
@@ -65,10 +65,10 @@ class RuleRead(RuleBase):
 
     rule_id: str
     farm_id: str
-    last_triggered_at: Optional[datetime] = None
+    last_triggered_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
-    actions: List[RuleActionRead] = []
+    actions: list[RuleActionRead] = []
 
     model_config = ConfigDict(from_attributes=True)
 

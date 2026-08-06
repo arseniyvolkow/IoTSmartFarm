@@ -1,8 +1,9 @@
-from sqlalchemy.orm import DeclarativeBase
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine, AsyncSession
 import os
 from typing import Annotated
+
 from fastapi import Depends
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.orm import DeclarativeBase
 
 SQLALCHEMY_DATABASE_URL = (
     f"postgresql+asyncpg://{os.getenv('POSTGRES_USER_DATABASE_USERNAME')}:"

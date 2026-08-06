@@ -7,82 +7,28 @@ on:
     branches: [ "main", "master" ]
 
 jobs:
-  test-service:
+  test:
+    name: Run All Microservices Tests
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false 
-      matrix:
-        # Added 'common' to the matrix to run shared logic tests
-        service: [common, user_service, farm_management_service, sensor_data_service, rule_service, rule_worker]
-
-    services:
-      postgres:
-        image: postgres:15
-        env:
-          POSTGRES_USER: test_user
-          POSTGRES_PASSWORD: test_password
-          POSTGRES_DB: test_db
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
-      redis:
-        image: redis:7-alpine
-        ports:
-          - 6379:6379
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: "3.10"
+    - name: Setup Environment Variables
+      run: cp example.env .env
 
-    - name: Install dependencies
+    - name: Build and Start Docker Containers
+      run: docker compose up -d --build
+
+    - name: Wait for Containers to be Ready
+      run: sleep 15
+
+    - name: Run Pytest Suite via Docker
       run: |
-        python -m pip install --upgrade pip
-        # FIX: Added 'aiosqlite', 'sqlalchemy', 'orjson', 'python-dotenv', 'bcrypt', 'redis'
-        pip install flake8 pytest pytest-asyncio httpx pyjwt fakeredis fastapi pydantic aiosqlite sqlalchemy orjson python-dotenv bcrypt redis
-        
-        if [ -f ${{ matrix.service }}/requirements.txt ]; then
-          pip install -r ${{ matrix.service }}/requirements.txt
-        fi
+        chmod +x run_tests_docker.sh
+        ./run_tests_docker.sh
 
-    - name: Lint with Flake8
-      run: |
-        flake8 ${{ matrix.service }} --count --select=E9,F63,F7,F82 --show-source --statistics
-        flake8 ${{ matrix.service }} --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-
-    - name: Run Tests
-      env:
-        POSTGRES_USER: test_user
-        POSTGRES_PASSWORD: test_password
-        POSTGRES_DB: test_db
-        POSTGRES_HOST: localhost
-        POSTGRES_PORT: 5432
-        REDIS_HOST: localhost
-        REDIS_PORT: 6379
-        SECRET_KEY: "test_secret_key"
-        ALGORITHM: "HS256"
-        ACCESS_TOKEN_EXPIRE_MINUTES: "30"
-        REFRESH_TOKEN_EXPIRE_DAYS: "7"
-        # Ensure python finds the 'common' package from the root
-        PYTHONPATH: .
-      run: |
-        if [ -d "${{ matrix.service }}/tests" ] || ls ${{ matrix.service }} | grep -q "test_"; then
-           echo "🚀 Running tests for ${{ matrix.service }}..."
-           pytest ${{ matrix.service }}
-        else
-           echo "⚠️ No tests found for ${{ matrix.service }}, skipping..."
-        fi
+    - name: View Docker Logs on Failure
+      if: failure()
+      run: docker compose logs

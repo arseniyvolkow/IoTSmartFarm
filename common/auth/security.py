@@ -1,15 +1,16 @@
-import os
-import orjson
 import hashlib
+import os
 import time
-from typing import Annotated, Dict, Any, Optional
+from typing import Annotated, Any
+
+import jwt
+import orjson
+import redis.asyncio as redis
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
-import jwt
 from jwt.exceptions import InvalidTokenError
-import redis.asyncio as redis
-from .redis_config import is_token_blacklisted, redis_client
 
+from common.database.redis_config import is_token_blacklisted, redis_client
 
 SECRET_KEY = os.getenv("SECRET_KEY")
 if not SECRET_KEY:
@@ -34,7 +35,7 @@ class UserIdentity:
     2. Zero validation overhead: Pydantic is slow when instantiated 1000s of times/sec.
     3. Provides IDE autocompletion while remaining almost as fast as a raw dict.
     """
-    __slots__ = ("id", "email", "role", "g_perms", "access", "raw_payload")
+    __slots__ = ("access", "email", "g_perms", "id", "raw_payload", "role")
     
     def __init__(self, payload: dict):
         self.id = payload.get("sub")

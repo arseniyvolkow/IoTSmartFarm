@@ -1,15 +1,16 @@
+
 from fastapi import HTTPException
 from sqlalchemy.exc import IntegrityError
 from starlette import status
+
+from common.auth.schemas import CurrentUser
+from farm_management_service.enums import AccessLevel
 from farm_management_service.models import Devices
-from farm_management_service.schemas import DeviceCreate, DeviceRead, DevicePagination
-from typing import Optional, Union
+from farm_management_service.repositories.actuator_repository import ActuatorRepository
 from farm_management_service.repositories.device_repository import DeviceRepository
 from farm_management_service.repositories.sensor_repository import SensorRepository
-from farm_management_service.repositories.actuator_repository import ActuatorRepository
+from farm_management_service.schemas import DeviceCreate, DevicePagination, DeviceRead
 from farm_management_service.services.access_service import AccessService
-from farm_management_service.enums import AccessLevel
-from common.schemas import CurrentUser
 
 
 class DeviceService:
@@ -25,7 +26,7 @@ class DeviceService:
         self.actuator_repo = actuator_repo
         self.access_service = access_service
 
-    async def check_access(self, entity, user: Union[CurrentUser, str], required_level: AccessLevel = AccessLevel.READ):
+    async def check_access(self, entity, user: CurrentUser | str, required_level: AccessLevel = AccessLevel.READ):
         user_id = user
         
         # 1. Check Global Permissions (RBAC Override)
@@ -100,16 +101,15 @@ class DeviceService:
             await self.device_repo.rollback()
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"An unexpected error occurred: {str(e)}",
+                detail=f"An unexpected error occurred: {e!s}",
             )
-        await self.device_repo.refresh(device_entity)
-        return device_entity
+        return await self.get(device_id)
 
     async def get_unassigned_to_user_devices(
         self,
         sort_column: str,
-        cursor: Optional[str] = None,
-        limit: Optional[int] = 10,
+        cursor: str | None = None,
+        limit: int | None = 10,
     ):
         items, next_cursor = await self.device_repo.get_unassigned_to_user_devices(sort_column, cursor, limit)
         return items, next_cursor
@@ -118,8 +118,8 @@ class DeviceService:
         self,
         user_id: str,
         sort_column: str,
-        cursor: Optional[str] = None,
-        limit: Optional[int] = 10,
+        cursor: str | None = None,
+        limit: int | None = 10,
     ):
         items, next_cursor = await self.device_repo.get_unassigned_to_farm_devices(user_id, sort_column, cursor, limit)
         return items, next_cursor
@@ -128,9 +128,9 @@ class DeviceService:
         self,
         user_id: str,
         sort_column: str,
-        farm_id: Optional[str] = None,
-        cursor: Optional[str] = None,
-        limit: Optional[int] = 10,
+        farm_id: str | None = None,
+        cursor: str | None = None,
+        limit: int | None = 10,
     ) -> DevicePagination:
         items, next_cursor = await self.device_repo.get_user_devices(user_id, sort_column, farm_id, cursor, limit)
         return items, next_cursor

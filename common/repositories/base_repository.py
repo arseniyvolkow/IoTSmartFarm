@@ -1,0 +1,106 @@
+import abc
+from datetime import datetime
+
+from fastapi import HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.types import DateTime
+
+from common.auth.schemas import CurrentUser
+
+
+class BaseRepository(abc.ABC):
+    def __init__(self, db: AsyncSession):
+        self.db = db
+
+    async def check_access(self, entity, user: CurrentUser | str):
+        """
+        Checks if the user has access to the entity.
+        Prioritizes Global RBAC permissions (g_perms) if User object is provided.
+        """
+        user_id = user
+        
+        # 1. Check Global Permissions (RBAC Override)
+        if isinstance(user, CurrentUser):
+            user_id = user.id
+            g_perms = user.g_perms or {}
+            
+            # Super Admin / Write All access overrides everything
+            if g_perms.get("w_all") is True:
+                return
+
+        # 2. Check Ownership (Default)
+        if entity.user_id != user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, detail="Access denied!"
+            )
+
+    async def update(self, entity, **kwargs):
+        for key, value in kwargs.items():
+            if value is not None:
+                setattr(entity, key, value)
+        await self.db.commit()
+        await self.db.refresh(entity)
+        return entity
+
+    async def delete(self, entity):
+        await self.db.delete(entity)
+        await self.db.commit()
+
+    async def cursor_paginate(
+        self,
+        session,
+        query,
+        sort_column: str | None = None,
+        cursor: str | None = None,
+        limit: int = 10,
+    ):
+        try:
+            model = query.column_descriptions[0]["type"]
+            sort_key_name = sort_column if sort_column else "created_at"
+            try:
+                sort_key = getattr(model, sort_key_name)
+            except AttributeError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid sort column: {sort_key_name}",
+                )
+            if cursor:
+                column_type_instance = sort_key.comparator.type
+                cursor_value = cursor
+                if isinstance(column_type_instance, DateTime):
+                    try:
+                        cursor_value = datetime.fromisoformat(cursor)
+                    except ValueError:
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="Invalid cursor format for DateTime column.",
+                        )
+                elif column_type_instance.python_type is int:
+                    cursor_value = int(cursor)
+                elif column_type_instance.python_type is float:
+                    cursor_value = float(cursor)
+                query = query.filter(sort_key > cursor_value)
+
+            query = query.order_by(sort_key)
+            result = await session.execute(query.limit(limit + 1))
+
+            items = result.unique().scalars().all()
+
+            has_more = len(items) > limit
+            items = items[:limit]
+
+            if has_more:
+                next_value = getattr(items[-1], sort_key_name)
+                if isinstance(next_value, datetime):
+                    next_cursor = next_value.isoformat()
+                else:
+                    next_cursor = str(next_value)
+            else:
+                next_cursor = None
+
+            return items, next_cursor
+        except Exception as e:
+            print(f"Pagination failed with internal error: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Pagination error"
+            )

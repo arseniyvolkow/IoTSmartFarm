@@ -1,12 +1,13 @@
+
 from fastapi import HTTPException
 from starlette import status
+
+from common.auth.schemas import CurrentUser
+from farm_management_service.enums import AccessLevel
 from farm_management_service.models import Farms
+from farm_management_service.repositories.farm_repository import FarmRepository
 from farm_management_service.schemas import FarmCreate
 from farm_management_service.services.access_service import AccessService
-from farm_management_service.repositories.farm_repository import FarmRepository
-from farm_management_service.enums import AccessLevel
-from typing import Optional, Union
-from common.schemas import CurrentUser
 
 
 class FarmService:
@@ -28,7 +29,7 @@ class FarmService:
             )
         return farm_entity
 
-    async def check_access(self, entity, user: Union[CurrentUser, str], required_level: AccessLevel = AccessLevel.READ):
+    async def check_access(self, entity, user: CurrentUser | str, required_level: AccessLevel = AccessLevel.READ):
         """
         Overrides BaseService.check_access to support Shared Access + RBAC.
         """
@@ -67,7 +68,7 @@ class FarmService:
         self,
         user_id: str,
         sort_column: str,
-        cursor: Optional[str] = None,
+        cursor: str | None = None,
         limit: int = 10,
     ):
         return await self.farm_repo.get_all_farms(user_id, sort_column, cursor, limit)

@@ -1,12 +1,14 @@
-import pytest
 from datetime import timedelta
+
+import pytest
 from fastapi import HTTPException
+
+from common.auth.security import decode_access_token
 from user_service.security import (
-    hash_password, 
-    verify_password, 
-    create_access_token, 
-    create_refresh_token, 
-    decode_access_token
+    create_access_token,
+    create_refresh_token,
+    hash_password,
+    verify_password,
 )
 
 ## --- Password Hashing Tests ---
@@ -46,15 +48,14 @@ def test_create_refresh_token():
 
 def test_decode_expired_token():
     # Create a token that expired 1 minute ago
-    data = {"sub": "test_user"}
-    expires = timedelta(minutes=-1)
-    token = create_access_token(data) 
     
     # Note: To test actual expiration, we'd need to manually construct 
     # a payload with an old 'exp' since create_token uses current time.
-    import jwt
     from datetime import datetime, timezone
-    from user_service.security import SECRET_KEY, ALGORITHM
+
+    import jwt
+
+    from user_service.security import ALGORITHM, SECRET_KEY
     
     expired_payload = {
         "sub": "test",

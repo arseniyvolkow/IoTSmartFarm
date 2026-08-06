@@ -1,8 +1,13 @@
-from fastapi import APIRouter, Depends, status, Path
-from typing import List, Annotated
-from farm_management_service.services.access_service import AccessService
-from farm_management_service.dependencies import get_access_service, CurrentUserDependency
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, status
+
+from farm_management_service.dependencies import (
+    CurrentUserDependency,
+    get_access_service,
+)
 from farm_management_service.schemas import FarmAccessCreate, FarmAccessRead
+from farm_management_service.services.access_service import AccessService
 
 router = APIRouter(prefix="/farms", tags=["Access Control"])
 
@@ -26,7 +31,7 @@ async def revoke_access(
 ):
     await access_service.revoke_access(farm_id, user_id, current_user.id)
 
-@router.get("/{farm_id}/access", response_model=List[FarmAccessRead])
+@router.get("/{farm_id}/access", response_model=list[FarmAccessRead])
 async def list_access(
     farm_id: str,
     access_service: AccessServiceDependency,

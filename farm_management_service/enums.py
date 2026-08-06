@@ -1,5 +1,6 @@
 from enum import Enum as PyEnum
 
+
 class AccessLevel(PyEnum):
     READ = "read"
     WRITE = "write"

@@ -4,8 +4,8 @@ import logging
 import os
 
 from rule_worker.database import get_db
-from rule_worker.services.redis_service import RedisService
 from rule_worker.services.evaluator import RuleEvaluator
+from rule_worker.services.redis_service import RedisService
 
 logger = logging.getLogger(__name__)
 

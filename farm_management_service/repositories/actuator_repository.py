@@ -1,12 +1,14 @@
-from farm_management_service.repositories.base_repository import BaseRepository
-from farm_management_service.models import Actuators, Devices, FarmAccess
+
+from sqlalchemy import or_, select, update
 from sqlalchemy.orm import joinedload
-from sqlalchemy import select, update, or_
-from typing import List, Optional
+
+from farm_management_service.models import Actuators, Devices, FarmAccess
+from farm_management_service.repositories.base_repository import BaseRepository
 from farm_management_service.schemas import ActuatorBase
 
+
 class ActuatorRepository(BaseRepository):
-    def add_actuators_to_session(self, device_id: str, actuators_list: List[ActuatorBase]):
+    def add_actuators_to_session(self, device_id: str, actuators_list: list[ActuatorBase]):
         if not actuators_list:
             return
 
@@ -20,7 +22,7 @@ class ActuatorRepository(BaseRepository):
         ]
         self.db.add_all(actuator_entities)
 
-    async def get_by_id(self, actuator_id: str) -> Optional[Actuators]:
+    async def get_by_id(self, actuator_id: str) -> Actuators | None:
         query = (
             select(Actuators)
             .filter(Actuators.actuator_id == actuator_id)
@@ -29,7 +31,7 @@ class ActuatorRepository(BaseRepository):
         result = await self.db.execute(query)
         return result.scalar_one_or_none()
 
-    async def get_all_actuators(self, user_id: str, sort_column: str, cursor: Optional[str] = None, limit: int = 10):
+    async def get_all_actuators(self, user_id: str, sort_column: str, cursor: str | None = None, limit: int = 10):
         query = (
             select(Actuators)
             .join(Devices, Actuators.device_id == Devices.device_id)

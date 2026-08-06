@@ -1,13 +1,14 @@
-from typing import Dict, Union, Any
-import bcrypt
-import jwt
-from datetime import timedelta, datetime, timezone
+import asyncio
 import os
 import uuid
-import asyncio
+from datetime import datetime, timedelta, timezone
+from typing import Any
+
+import bcrypt
+import jwt
 
 # Import shared configuration and validation logic
-from common.security import SECRET_KEY, ALGORITHM, decode_access_token
+from common.auth.security import ALGORITHM, SECRET_KEY
 
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "20"))
 REFRESH_TOKEN_EXPIRE_DAYS = 7
@@ -47,8 +48,8 @@ async def verify_password(plain_password: str, hashed_password: str):
 
 
 def create_token(
-    data: Dict[str, Any],
-    expires_delta: Union[timedelta, None] = None,
+    data: dict[str, Any],
+    expires_delta: timedelta | None = None,
     token_type: str = "access",
 ) -> str:
     """

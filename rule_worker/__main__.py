@@ -1,7 +1,8 @@
 import asyncio
+import logging
 import os
 import sys
-import logging
+
 from rule_worker.worker import run_rule_worker_daemon
 
 # Configure logging early

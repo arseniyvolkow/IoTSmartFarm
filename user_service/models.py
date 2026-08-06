@@ -1,10 +1,12 @@
-from user_service.database import Base
 import uuid
-from sqlalchemy.orm import relationship, Mapped, mapped_column
-from sqlalchemy import ForeignKey, String, Boolean
-from typing import Optional, List
 from datetime import datetime
+from typing import Optional
+
+from sqlalchemy import Boolean, ForeignKey, String
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.schema import UniqueConstraint
+
+from user_service.database import Base
 
 
 def generate_uuid():
@@ -22,16 +24,16 @@ class User(Base):
     email: Mapped[str] = mapped_column(String, unique=True, index=True, nullable=False)
     hashed_password: Mapped[str] = mapped_column(String, nullable=False)
 
-    first_name: Mapped[Optional[str]] = mapped_column(String)
-    last_name: Mapped[Optional[str]] = mapped_column(String)
-    middle_name: Mapped[Optional[str]] = mapped_column(String)
+    first_name: Mapped[str | None] = mapped_column(String)
+    last_name: Mapped[str | None] = mapped_column(String)
+    middle_name: Mapped[str | None] = mapped_column(String)
 
     # Статус активности для "мягкого" удаления
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
     # FIX: Изменено на Optional[str] и добавлено nullable=True
     # Это позволяет создавать пользователя без немедленного назначения роли
-    role_id: Mapped[Optional[str]] = mapped_column(ForeignKey("roles.id"), nullable=True)
+    role_id: Mapped[str | None] = mapped_column(ForeignKey("roles.id"), nullable=True)
 
     # Связь ORM (много к одному)
     role: Mapped[Optional["Role"]] = relationship(back_populates="users")
@@ -59,9 +61,9 @@ class Role(Base):
     )
     
     # Двусторонняя связь с пользователями
-    users: Mapped[List["User"]] = relationship(back_populates="role")
+    users: Mapped[list["User"]] = relationship(back_populates="role")
 
-    access_list: Mapped[List["RoleAccess"]] = relationship(
+    access_list: Mapped[list["RoleAccess"]] = relationship(
         back_populates="role", cascade="all, delete-orphan", lazy="selectin"
     )
 

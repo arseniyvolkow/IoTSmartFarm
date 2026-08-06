@@ -1,20 +1,22 @@
-import pytest
-import pytest_asyncio
 import os
 
+import pytest
+import pytest_asyncio
+
 # Set environment variables before app imports to prevent configuration errors
-os.environ["SECRET_KEY"] = "test-secret-key-123"
+os.environ["SECRET_KEY"] = "test-secret-key-123-which-is-long-enough"
 os.environ["ALGORITHM"] = "HS256"
 os.environ["REDIS_HOST"] = "localhost"
 
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
-from httpx import AsyncClient, ASGITransport
-from user_service.main import app
+from httpx import ASGITransport, AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+
+from common.database.redis_config import redis_client
 from user_service.database import Base, get_db
+from user_service.main import app
 from user_service.services.auth_service import AuthService
 from user_service.services.rbac_service import RBACService
 from user_service.services.user_service import UserService
-from common.redis_config import redis_client
 
 # SQLite in-memory is used for speed and isolation during tests
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"

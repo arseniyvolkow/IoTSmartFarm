@@ -1,16 +1,18 @@
-from farm_management_service.repositories.base_repository import BaseRepository
-from farm_management_service.models import FarmAccess, Farms
-from sqlalchemy import select, delete
-from typing import List, Optional
+
+from sqlalchemy import delete, select
+
 from farm_management_service.enums import AccessLevel
+from farm_management_service.models import FarmAccess, Farms
+from farm_management_service.repositories.base_repository import BaseRepository
+
 
 class AccessRepository(BaseRepository):
-    async def get_farm_owner(self, farm_id: str) -> Optional[str]:
+    async def get_farm_owner(self, farm_id: str) -> str | None:
         query = select(Farms.user_id).filter(Farms.farm_id == farm_id)
         result = await self.db.execute(query)
         return result.scalar_one_or_none()
 
-    async def get_access_entry(self, farm_id: str, user_id: str) -> Optional[FarmAccess]:
+    async def get_access_entry(self, farm_id: str, user_id: str) -> FarmAccess | None:
         query = select(FarmAccess).filter(
             FarmAccess.farm_id == farm_id,
             FarmAccess.user_id == user_id
@@ -44,7 +46,7 @@ class AccessRepository(BaseRepository):
         await self.db.commit()
         return result.rowcount
 
-    async def get_all_access_for_farm(self, farm_id: str) -> List[FarmAccess]:
+    async def get_all_access_for_farm(self, farm_id: str) -> list[FarmAccess]:
         query = select(FarmAccess).filter(FarmAccess.farm_id == farm_id)
         result = await self.db.execute(query)
         return list(result.scalars().all())

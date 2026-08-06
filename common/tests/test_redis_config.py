@@ -1,8 +1,11 @@
+from unittest.mock import patch
+
+import fakeredis.aioredis
 import pytest
 import pytest_asyncio
-from unittest.mock import patch
-import fakeredis.aioredis
-from common.redis_config import add_token_to_blacklist, is_token_blacklisted
+
+from common.database.redis_config import add_token_to_blacklist, is_token_blacklisted
+
 
 @pytest_asyncio.fixture(autouse=True)
 async def mock_redis():
@@ -14,7 +17,7 @@ async def mock_redis():
     fake_client = fakeredis.aioredis.FakeRedis(decode_responses=True)
     
     # Патчим объект redis_client в модуле, где он определен
-    with patch("common.redis_config.redis_client", fake_client):
+    with patch("common.database.redis_config.redis_client", fake_client):
         yield fake_client
     
     # Очищаем данные после каждого теста

@@ -1,10 +1,12 @@
-from typing import List
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
-from sqlalchemy.orm import selectinload
-from sqlalchemy.dialects.postgresql import insert
+
 from fastapi import HTTPException
+from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
 from user_service.models import Role, RoleAccess
+
 
 class RBACService:
     def __init__(self, db: AsyncSession):
@@ -77,7 +79,7 @@ class RBACService:
         await self.db.refresh(role, ["access_list"])
         return role
 
-    async def get_all_roles(self) -> List[Role]:
+    async def get_all_roles(self) -> list[Role]:
         stmt = select(Role).options(selectinload(Role.access_list))
         result = await self.db.execute(stmt)
         return result.scalars().all()

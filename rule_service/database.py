@@ -1,4 +1,5 @@
-from common.rule_database import Base, engine, AsyncSessionLocal
+from common.database.rule_database import AsyncSessionLocal
+
 
 async def get_db():
     db = AsyncSessionLocal()

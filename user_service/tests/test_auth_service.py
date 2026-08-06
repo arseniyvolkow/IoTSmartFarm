@@ -1,8 +1,10 @@
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 from datetime import datetime, timezone
-from fastapi import HTTPException
-from user_service.schemas import UserLogin, TokenPair
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
+from user_service.schemas import UserLogin
+
 
 # Вспомогательные классы оставляем здесь, так как они нужны для генерации Payload
 class MockUser:

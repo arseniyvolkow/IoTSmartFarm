@@ -1,28 +1,32 @@
-from fastapi import APIRouter, HTTPException, Query, Path, status
-from typing import Optional
-from farm_management_service.models import Crops, CropManagement
+
+from fastapi import APIRouter, HTTPException, Path, Query, status
 from sqlalchemy import select
+
+from farm_management_service.dependencies import (
+    CropServiceDependency,
+    CurrentUserDependency,
+    db_dependency,
+)
+from farm_management_service.models import CropManagement, Crops
 from farm_management_service.schemas import (
     CropManagmentCreate,
-    CropManagmentUpdate,
-    CropManagmentRead,
     CropManagmentPagination,
-    CropTypesPagination,
+    CropManagmentRead,
+    CropManagmentUpdate,
     CropRead,
+    CropTypesPagination,
 )
 from farm_management_service.services.crops_service import CropService
-from farm_management_service.dependencies import db_dependency, CurrentUserDependency
 
 router = APIRouter(prefix="/crop", tags=["Crops"])
 
 
 @router.post("/crop", status_code=status.HTTP_200_OK, response_model=CropManagmentRead)
 async def add_new_crop(
-    db: db_dependency,
+    crop_service: CropServiceDependency,
     crop: CropManagmentCreate,
     current_user: CurrentUserDependency,
 ):
-    crop_service = CropService(db)
     new_crop_entity = await crop_service.create(crop, current_user.id)
     return new_crop_entity
 
@@ -31,11 +35,10 @@ async def add_new_crop(
     "/crop/{crop_id}", status_code=status.HTTP_200_OK, response_model=CropManagmentRead
 )
 async def get_info_about_crop(
-    db: db_dependency,
+    crop_service: CropServiceDependency,
     current_user: CurrentUserDependency,
     crop_id: str = Path(max_length=100),
 ):
-    crop_service = CropService(db)
     crop_entity = await crop_service.get(crop_id)
     await crop_service.check_access(crop_entity, current_user)
     return crop_entity
@@ -44,14 +47,13 @@ async def get_info_about_crop(
 @router.put("/crop/{crop_id}", status_code=status.HTTP_200_OK)
 async def change_crop_info(
     crop_data: CropManagmentUpdate,
-    db: db_dependency,
+    crop_service: CropServiceDependency,
     current_user: CurrentUserDependency,
     crop_id: str = Path(max_length=100),
 ):
-    crop_service = CropService(db)
     crop_entity = await crop_service.get(crop_id)
     await crop_service.check_access(crop_entity, current_user)
-    new_crop_entity = await crop_service.update(crop_entity, **crop_data.model_dump())
+    new_crop_entity = await crop_service.update(crop_entity, **crop_data.model_dump(exclude_unset=True))
     return new_crop_entity
 
 
@@ -78,16 +80,15 @@ async def new_crop_type(
     "/all", status_code=status.HTTP_200_OK, response_model=CropManagmentPagination
 )
 async def all_crops(
-    db: db_dependency,
+    crop_service: CropServiceDependency,
     current_user: CurrentUserDependency,
-    sort_column: Optional[str] = None,
-    cursor: Optional[str] = Query(None),
-    limit: Optional[int] = Query(10, ge=10, le=200),
+    sort_column: str | None = None,
+    cursor: str | None = Query(None),
+    limit: int | None = Query(10, ge=10, le=200),
 ) -> CropManagmentPagination:
     query = select(CropManagement)
-    crop_service = CropService(db)
     items, next_cursor = await crop_service.cursor_paginate(
-        db, query, sort_column, cursor, limit
+        crop_service.crop_repo.db, query, sort_column, cursor, limit
     )
     return {"items": items, "next_cursor": next_cursor}
 
@@ -99,9 +100,9 @@ async def all_crops(
 )
 async def all_crop_types(
     db: db_dependency,
-    sort_column: Optional[str] = None,
-    cursor: Optional[str] = Query(None),
-    limit: Optional[int] = Query(10, ge=10, le=200),
+    sort_column: str | None = None,
+    cursor: str | None = Query(None),
+    limit: int | None = Query(10, ge=10, le=200),
 ) -> CropTypesPagination:
     query = select(Crops)
     crop_service = CropService(db)

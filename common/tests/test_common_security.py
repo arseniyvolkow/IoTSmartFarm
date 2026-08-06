@@ -1,20 +1,22 @@
-import pytest
-import jwt
 import time
 from unittest.mock import AsyncMock, patch
-from fastapi import HTTPException, status
-from common.security import (
-    get_token_payload, 
-    get_current_user_identity, 
-    CheckAccess, 
-    is_admin,
-    get_current_user_id,
-    SECRET_KEY, 
-    ALGORITHM,
-    UserIdentity
-)
-from common.schemas import CurrentUser
+
+import jwt
+import pytest
 import redis.asyncio as redis
+from fastapi import HTTPException, status
+
+from common.auth.security import (
+    ALGORITHM,
+    SECRET_KEY,
+    CheckAccess,
+    UserIdentity,
+    get_current_user_id,
+    get_current_user_identity,
+    get_token_payload,
+    is_admin,
+)
+
 
 # Вспомогательная функция для создания токенов для тестирования
 def create_test_token(payload: dict):
@@ -25,9 +27,9 @@ async def test_get_token_payload_success():
     payload = {"sub": "user_1", "jti": "unique_jti", "exp": 9999999999}
     token = create_test_token(payload)
     
-    with patch("common.security.redis_client", new_callable=AsyncMock) as mock_redis:
+    with patch("common.auth.security.redis_client", new_callable=AsyncMock) as mock_redis:
         mock_redis.get.return_value = None  # Cache miss
-        with patch("common.security.is_token_blacklisted", new_callable=AsyncMock) as mock_blacklist:
+        with patch("common.auth.security.is_token_blacklisted", new_callable=AsyncMock) as mock_blacklist:
             mock_blacklist.return_value = False
             
             result = await get_token_payload(token)
@@ -40,9 +42,9 @@ async def test_get_token_payload_blacklisted():
     payload = {"sub": "user_1", "jti": "revoked_jti"}
     token = create_test_token(payload)
     
-    with patch("common.security.redis_client", new_callable=AsyncMock) as mock_redis:
+    with patch("common.auth.security.redis_client", new_callable=AsyncMock) as mock_redis:
         mock_redis.get.return_value = None  # Cache miss
-        with patch("common.security.is_token_blacklisted", new_callable=AsyncMock) as mock_blacklist:
+        with patch("common.auth.security.is_token_blacklisted", new_callable=AsyncMock) as mock_blacklist:
             mock_blacklist.return_value = True
             
             with pytest.raises(HTTPException) as exc:
@@ -54,7 +56,7 @@ async def test_get_token_payload_blacklisted():
 @pytest.mark.asyncio
 async def test_get_token_payload_invalid_token():
     # Тест на передачу некорректной строки вместо токена
-    with patch("common.security.redis_client", new_callable=AsyncMock) as mock_redis:
+    with patch("common.auth.security.redis_client", new_callable=AsyncMock) as mock_redis:
         mock_redis.get.return_value = None  # Cache miss
         with pytest.raises(HTTPException) as exc:
             await get_token_payload("invalid-token-string")
@@ -66,9 +68,9 @@ async def test_get_token_payload_invalid_token():
 async def test_get_token_payload_redis_error():
     token = create_test_token({"sub": "user_1", "jti": "some_jti"})
     
-    with patch("common.security.redis_client", new_callable=AsyncMock) as mock_redis:
+    with patch("common.auth.security.redis_client", new_callable=AsyncMock) as mock_redis:
         mock_redis.get.side_effect = redis.RedisError
-        with patch("common.security.is_token_blacklisted", side_effect=redis.RedisError):
+        with patch("common.auth.security.is_token_blacklisted", side_effect=redis.RedisError):
             with pytest.raises(HTTPException) as exc:
                 await get_token_payload(token)
             
@@ -86,7 +88,7 @@ async def test_get_current_user_identity():
     }
     token = create_test_token(payload)
     
-    with patch("common.security.redis_client", new_callable=AsyncMock) as mock_redis:
+    with patch("common.auth.security.redis_client", new_callable=AsyncMock) as mock_redis:
         mock_redis.get.return_value = None  # Cache miss
         
         user = await get_current_user_identity(token)

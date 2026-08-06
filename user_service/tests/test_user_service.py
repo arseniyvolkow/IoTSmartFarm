@@ -1,5 +1,6 @@
 import pytest
-from fastapi import HTTPException, status
+from fastapi import HTTPException
+
 from user_service.schemas import UserRegister, UserUpdate
 
 # Common data to avoid repetition and ensure schema requirements are met

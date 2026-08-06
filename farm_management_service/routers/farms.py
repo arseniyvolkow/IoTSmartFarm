@@ -1,19 +1,27 @@
-from fastapi import APIRouter, Query, Path, status
-from typing import Optional
-from farm_management_service.schemas import FarmCreate, FarmPagination, FarmUpdate, FarmRead
-from farm_management_service.services.farm_service import FarmService
-from farm_management_service.dependencies import db_dependency, CurrentUserDependency, CropServiceDependency, FarmServiceDependency
+
+from fastapi import APIRouter, Path, Query, status
+
+from farm_management_service.dependencies import (
+    CropServiceDependency,
+    CurrentUserDependency,
+    FarmServiceDependency,
+)
+from farm_management_service.schemas import (
+    FarmCreate,
+    FarmPagination,
+    FarmRead,
+    FarmUpdate,
+)
 
 router = APIRouter(prefix="/farms", tags=["Farms and Crops management"])
 
 
 @router.post("/farm", status_code=status.HTTP_201_CREATED)
 async def add_new_farm(
-    db: db_dependency,
+    farm_service: FarmServiceDependency,
     current_user: CurrentUserDependency,
     farm: FarmCreate,
 ):
-    farm_service = FarmService(db)
     await farm_service.create(farm, current_user.id)
     return {"message": "Farm added successfully"}
 
@@ -22,9 +30,9 @@ async def add_new_farm(
 async def get_all_farms(
     farm_service: FarmServiceDependency,
     current_user: CurrentUserDependency,
-    sort_column: Optional[str] = None,
-    cursor: Optional[str] = Query(None),
-    limit: Optional[int] = Query(10, le=200),
+    sort_column: str | None = None,
+    cursor: str | None = Query(None),
+    limit: int | None = Query(10, le=200),
 ):
     items, next_cursor = await farm_service.get_all_farms(
         current_user.id, sort_column, cursor, limit
@@ -52,7 +60,7 @@ async def update_farm_info(
 ):
     farm_entity = await farm_service.get(farm_id)
     await farm_service.check_access(farm_entity, current_user)
-    await farm_service.update(farm_entity, **farm.model_dump())
+    await farm_service.update(farm_entity, **farm.model_dump(exclude_unset=True))
     return {"details": f"Farm {farm_entity.farm_id} info was updated!"}
 
 

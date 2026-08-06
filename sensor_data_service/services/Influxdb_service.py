@@ -1,7 +1,8 @@
-import logging
 import asyncio
+import logging
 from datetime import datetime, timezone
-from typing import List, Dict, Any, Optional
+from typing import Any
+
 from influxdb_client import Point
 from influxdb_client.client.influxdb_client_async import InfluxDBClientAsync
 
@@ -18,7 +19,7 @@ class InfluxDBService:
         self._token = token
         self._org = org
         self.bucket = bucket
-        self._client: Optional[InfluxDBClientAsync] = None
+        self._client: InfluxDBClientAsync | None = None
         self.write_api = None
         self.query_api = None
         self._lock = asyncio.Lock()
@@ -50,7 +51,7 @@ class InfluxDBService:
                 self.query_api = None
                 logger.info("InfluxDB client closed.")
 
-    async def save_sensor_data(self, sensor_data_list: List[Dict[str, Any]]):
+    async def save_sensor_data(self, sensor_data_list: list[dict[str, Any]]):
         """
         Save a batch of sensor data to InfluxDB.
         """
@@ -96,7 +97,7 @@ class InfluxDBService:
 
     async def query_data_by_sensor_id(
         self, sensor_id: str, time_range: str
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Query time series data for a specific sensor ID.
         """

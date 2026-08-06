@@ -1,8 +1,9 @@
-from fastapi import APIRouter, status, Response, Depends
-from user_service.schemas import UserUpdate, UserResponse
-from user_service.dependencies import UserServiceDependency, CurrentUserDependency
-from common.security import CheckAccess
-from typing import List
+
+from fastapi import APIRouter, Depends, Response, status
+
+from common.auth.security import CheckAccess
+from user_service.dependencies import CurrentUserDependency, UserServiceDependency
+from user_service.schemas import UserResponse, UserUpdate
 
 router = APIRouter(prefix="/user", tags=["Users"])
 

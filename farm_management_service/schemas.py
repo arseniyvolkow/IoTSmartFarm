@@ -1,8 +1,9 @@
-from typing import Any, Optional
-from pydantic import BaseModel, ConfigDict, Field
 from datetime import date, datetime
-from typing import Optional, List, TypeVar, Generic
-from farm_management_service.enums import ActuatorState, DeviceStatus, AccessLevel
+from typing import Any, Generic, TypeVar
+
+from pydantic import BaseModel, ConfigDict
+
+from farm_management_service.enums import AccessLevel, ActuatorState, DeviceStatus
 
 T = TypeVar("T")
 
@@ -37,16 +38,16 @@ class SensorCreate(SensorBase):
 class SensorRead(SensorBase):
     sensor_id: str
     device_id: str
-    user_id: Optional[str] = None
+    user_id: str | None = None
     created_at: datetime
     model_config = ConfigDict(from_attributes=True)
 
 
 class SensorUpdate(BaseModel):
-    sensor_type: Optional[str] = None
-    units_of_measure: Optional[str] = None
-    max_value: Optional[float] = None
-    min_value: Optional[float] = None
+    sensor_type: str | None = None
+    units_of_measure: str | None = None
+    max_value: float | None = None
+    min_value: float | None = None
 
 
 # Actuators Models
@@ -64,17 +65,17 @@ class ActuatorBase(BaseModel):
 class ActuatorRead(ActuatorBase):
     actuator_id: str
     device_id: str
-    user_id: Optional[str] = None
+    user_id: str | None = None
     created_at: datetime
     updated_at: datetime
     
 
 class ActuatorUpdate(BaseModel):
-    current_state: Optional[ActuatorState] = None
-    actuator_type: Optional[str] = None
-    available_states: Optional[dict] = None
-    user_id: Optional[str] = None
-    device_id: Optional[str] = None
+    current_state: ActuatorState | None = None
+    actuator_type: str | None = None
+    available_states: dict | None = None
+    user_id: str | None = None
+    device_id: str | None = None
 
 
 class ActuatorCreate(ActuatorBase):
@@ -91,29 +92,29 @@ class DeviceBase(BaseModel):
 
 
 class DeviceCreate(DeviceBase):
-    sensors_list: Optional[List[SensorBase]] = None
-    actuators_list: Optional[List[ActuatorBase]] = None
+    sensors_list: list[SensorBase] | None = None
+    actuators_list: list[ActuatorBase] | None = None
 
 
 class DeviceRead(DeviceBase):
     device_id: str
-    user_id: Optional[str] = None
-    farm_id: Optional[str] = None
+    user_id: str | None = None
+    farm_id: str | None = None
     created_at: datetime
-    sensors: List[SensorRead]
-    actuators: List[ActuatorRead]
+    sensors: list[SensorRead]
+    actuators: list[ActuatorRead]
     model_config = ConfigDict(from_attributes=True)
 
 
 class DeviceUpdate(BaseModel):
-    device_ip_address: Optional[str] = None
-    model_number: Optional[str] = None
-    firmware_version: Optional[str] = None
-    status: Optional[DeviceStatus] = None
+    device_ip_address: str | None = None
+    model_number: str | None = None
+    firmware_version: str | None = None
+    status: DeviceStatus | None = None
 
     # Allows assigning a device to a new user or farm later
-    user_id: Optional[str] = None
-    farm_id: Optional[str] = None
+    user_id: str | None = None
+    farm_id: str | None = None
 
 
 # Farms models
@@ -138,9 +139,9 @@ class FarmCreate(FarmBase):
 
 
 class FarmUpdate(BaseModel):
-    farm_name: Optional[str] = None
-    total_area: Optional[int] = None
-    location: Optional[str] = None
+    farm_name: str | None = None
+    total_area: int | None = None
+    location: str | None = None
 
 
 
@@ -163,9 +164,9 @@ class CropManagmentCreate(CropManagmentBase):
 
 
 class CropManagmentUpdate(BaseModel):
-    planting_date: Optional[date] = None
-    expected_harvest_date: Optional[date] = None
-    current_grow_stage: Optional[str] = None
+    planting_date: date | None = None
+    expected_harvest_date: date | None = None
+    current_grow_stage: str | None = None
 
 
 # Crop models
@@ -189,12 +190,12 @@ class CropRead(CropBase):
 
 class ErrorResponse(BaseModel):
     message: str
-    details: Optional[Any] = None
+    details: Any | None = None
 
 
 class CursorPagination(BaseModel, Generic[T]):
-    items: List[T]
-    next_cursor: Optional[str] = None
+    items: list[T]
+    next_cursor: str | None = None
 
 
 DevicePagination = CursorPagination[DeviceRead]

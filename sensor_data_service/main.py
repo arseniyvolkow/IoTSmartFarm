@@ -1,11 +1,13 @@
 import logging
 import os
+
 from fastapi import FastAPI
+
 from sensor_data_service.database import Settings
-from sensor_data_service.services.redis_service import RedisService
+from sensor_data_service.routers import sensors
 from sensor_data_service.services.Influxdb_service import InfluxDBService
 from sensor_data_service.services.mqtt_service import AsyncMQTTService
-from sensor_data_service.routers import sensors
+from sensor_data_service.services.redis_service import RedisService
 
 logger = logging.getLogger(__name__)
 

@@ -1,17 +1,18 @@
 import logging
+from typing import Any
+
 import orjson
-from typing import Optional, List, Dict, Any
 import redis.asyncio as redis_client
 
 logger = logging.getLogger(__name__)
 
 class RedisService:
-    def __init__(self, host: str, port: int, db: int, password: Optional[str] = None):
+    def __init__(self, host: str, port: int, db: int, password: str | None = None):
         self._host = host
         self._port = port
         self._db = db
         self.password = password
-        self.client: Optional[redis_client.Redis] = None
+        self.client: redis_client.Redis | None = None
 
     async def connect(self):
         """Initialize Redis client and verify connection."""
@@ -67,7 +68,7 @@ class RedisService:
             logger.error(f"Error setting value for key '{key}': {e}")
             raise
 
-    async def get_sensor_value(self, key: str) -> Optional[str]:
+    async def get_sensor_value(self, key: str) -> str | None:
         """Get a single sensor value."""
         if not self.client:
             logger.warning("Redis not connected, skipping get operation")
@@ -80,7 +81,7 @@ class RedisService:
             logger.error(f"Error getting value for key '{key}': {e}")
             raise
 
-    async def get_cached_history(self, sensor_id: str, time_range: str) -> Optional[List[Dict[str, Any]]]:
+    async def get_cached_history(self, sensor_id: str, time_range: str) -> list[dict[str, Any]] | None:
         """Retrieve cached InfluxDB history to save CPU and DB load."""
         if not self.client:
             return None
@@ -95,7 +96,7 @@ class RedisService:
             logger.error(f"Error reading cache for history {redis_key}: {e}")
             return None
 
-    async def set_cached_history(self, sensor_id: str, time_range: str, data: List[Dict[str, Any]], ttl: int = 15):
+    async def set_cached_history(self, sensor_id: str, time_range: str, data: list[dict[str, Any]], ttl: int = 15):
         """Cache InfluxDB history for a short duration (default 15s) using fast orjson."""
         if not self.client:
             return
@@ -108,7 +109,7 @@ class RedisService:
         except Exception as e:
             logger.error(f"Error caching history for {redis_key}: {e}")
 
-    async def update_cache_from_batch(self, sensor_data_list: List[Dict[str, Any]]):
+    async def update_cache_from_batch(self, sensor_data_list: list[dict[str, Any]]):
         """
         Efficiently update Redis cache with a batch of sensor data using a pipeline.
         sensor_data_list expected format: [{'sensor_id': '...', 'value': ...}, ...]
@@ -151,7 +152,7 @@ class RedisService:
 
     # --- Device Twin Methods ---
     
-    async def get_device_twin(self, device_id: str) -> Dict[str, Any]:
+    async def get_device_twin(self, device_id: str) -> dict[str, Any]:
         """Fetch the full device twin, or return an empty structure if not exists."""
         if not self.client:
             return {"desired": {}, "reported": {}}
@@ -166,7 +167,7 @@ class RedisService:
             
         return {"desired": {}, "reported": {}}
 
-    async def _update_twin_block(self, device_id: str, block_name: str, state_dict: Dict[str, Any]):
+    async def _update_twin_block(self, device_id: str, block_name: str, state_dict: dict[str, Any]):
         """Helper to update either 'desired' or 'reported' blocks of the twin."""
         if not self.client:
             return
@@ -185,10 +186,10 @@ class RedisService:
         except Exception as e:
             logger.error(f"Error updating twin block {block_name} for {device_id}: {e}")
 
-    async def update_desired_state(self, device_id: str, state_dict: Dict[str, Any]):
+    async def update_desired_state(self, device_id: str, state_dict: dict[str, Any]):
         """Update the desired state of actuators."""
         await self._update_twin_block(device_id, "desired", state_dict)
         
-    async def update_reported_state(self, device_id: str, state_dict: Dict[str, Any]):
+    async def update_reported_state(self, device_id: str, state_dict: dict[str, Any]):
         """Update the reported state from the edge device."""
         await self._update_twin_block(device_id, "reported", state_dict)

@@ -1,12 +1,14 @@
 from typing import Annotated
+
 from fastapi import Depends
-from common.security import get_current_user_identity
-from rule_service.database import get_db
 from sqlalchemy.ext.asyncio import AsyncSession
-from rule_service.services.rules_service import RulesService
-from common.schemas import CurrentUser
+
+from common.auth.schemas import CurrentUser
+from common.auth.security import get_current_user_identity
+from rule_service.database import get_db
 from rule_service.repositories.rule_repository import RuleRepository
 from rule_service.services.rule_validator import RuleValidator
+from rule_service.services.rules_service import RulesService
 
 db_dependency = Annotated[AsyncSession, Depends(get_db)]
 

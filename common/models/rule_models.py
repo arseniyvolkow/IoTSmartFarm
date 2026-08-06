@@ -1,11 +1,13 @@
-from common.rule_database import Base
-from sqlalchemy.orm import relationship, Mapped, mapped_column
-from sqlalchemy import Enum, ForeignKey, DateTime, Text, JSON, Index
-from typing import List, Optional
 import uuid
+from datetime import datetime
+
+from sqlalchemy import JSON, DateTime, Enum, ForeignKey, Text
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
-from datetime import datetime, date
-from common.rule_enums import *
+
+from common.database.rule_database import Base
+from common.models.rule_enums import *
+
 
 def generate_uuid():
     return str(uuid.uuid4())
@@ -26,12 +28,12 @@ class Rules(Base):
         nullable=False,
     )
 
-    sensor_id: Mapped[Optional[str]] = mapped_column(index=True)
-    device_id: Mapped[Optional[str]] = mapped_column(index=True)
+    sensor_id: Mapped[str | None] = mapped_column(index=True)
+    device_id: Mapped[str | None] = mapped_column(index=True)
 
     rule_expression: Mapped[str] = mapped_column(Text, nullable=False)
     cooldown_seconds: Mapped[int] = mapped_column(default=0)
-    last_triggered_at: Mapped[Optional[datetime]] = mapped_column(
+    last_triggered_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
     is_active: Mapped[bool] = mapped_column(default=True)
@@ -42,7 +44,7 @@ class Rules(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
 
-    actions: Mapped[List["RuleActions"]] = relationship(
+    actions: Mapped[list["RuleActions"]] = relationship(
         "RuleActions", back_populates="rule", cascade="all, delete-orphan"
     )
 
@@ -59,7 +61,7 @@ class RuleActions(Base):
     )
 
     action_payload: Mapped[dict] = mapped_column(
-        JSON, nullable=False, default=lambda: {}
+        JSON, nullable=False, default=dict
     )
 
     execution_order: Mapped[int] = mapped_column(default=1)

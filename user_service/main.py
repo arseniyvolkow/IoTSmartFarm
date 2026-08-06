@@ -1,8 +1,9 @@
-from fastapi import FastAPI
-from user_service.database import engine
-from user_service.models import Base
-from user_service.routers import user, admin, auth
 from contextlib import asynccontextmanager
+
+from fastapi import FastAPI
+
+from user_service.database import engine
+from user_service.routers import admin, auth, user
 
 
 @asynccontextmanager

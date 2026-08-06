@@ -1,16 +1,15 @@
 import asyncio
-import logging
 import functools
+import logging
 from datetime import datetime, timedelta, timezone
-from typing import Dict, Any, Optional
+from typing import Any
 
 import rule_engine
-from sqlalchemy import select, update
+from sqlalchemy import update
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import joinedload
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from common.rule_models import Rules, RuleTriggerType
+from common.models.rule_models import Rules, RuleTriggerType
 from rule_worker.services.action_executor import ActionExecutor
 from rule_worker.services.context_builder import RuleContextBuilder
 from rule_worker.services.rule_cache import rule_cache
@@ -53,7 +52,7 @@ class RuleEvaluator:
             logger.debug(f"Rule '{rule.rule_name}' (ID: {rule.rule_id}) is on cooldown. Skipping.")
         return is_on_cooldown
 
-    async def _execute_matched_rule_actions(self, rule: Rules, context: Dict[str, Any], db: AsyncSession):
+    async def _execute_matched_rule_actions(self, rule: Rules, context: dict[str, Any], db: AsyncSession):
         """Execute all actions for a matched rule and update its timestamp."""
         logger.info(f"✅ Rule '{rule.rule_name}' MATCHED! Context: {context}")
         
@@ -84,7 +83,7 @@ class RuleEvaluator:
             logger.error(f"Failed to update last_triggered_at for rule {rule.rule_id}: {e}")
             await db.rollback()
 
-    async def evaluate_single_rule(self, rule: Rules, db_session: AsyncSession, triggered_value: Optional[float] = None) -> bool:
+    async def evaluate_single_rule(self, rule: Rules, db_session: AsyncSession, triggered_value: float | None = None) -> bool:
         """Evaluate a single rule."""
         if self._is_rule_on_cooldown(rule):
             return False
@@ -110,7 +109,7 @@ class RuleEvaluator:
         
         return False
 
-    async def evaluate_all_rules(self, db_session: AsyncSession, trigger_type: Optional[RuleTriggerType] = None):
+    async def evaluate_all_rules(self, db_session: AsyncSession, trigger_type: RuleTriggerType | None = None):
         """Evaluate all active rules, optionally filtered by trigger type."""
         try:
             rules = await rule_cache.get_all_rules(trigger_type)

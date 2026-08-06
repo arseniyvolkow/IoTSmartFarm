@@ -1,11 +1,13 @@
-from farm_management_service.database import Base
-from sqlalchemy.orm import relationship, Mapped, mapped_column
-from sqlalchemy import Enum, ForeignKey, DateTime, Text, JSON, UniqueConstraint
-from typing import List, Optional
 import uuid
+from datetime import date, datetime
+from typing import Optional
+
+from sqlalchemy import JSON, DateTime, Enum, ForeignKey, Text, UniqueConstraint
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
-from datetime import datetime, date
-from farm_management_service.enums import ActuatorState, DeviceStatus, AccessLevel
+
+from farm_management_service.database import Base
+from farm_management_service.enums import AccessLevel, ActuatorState, DeviceStatus
 
 
 def generate_uuid():
@@ -41,7 +43,7 @@ class Crops(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
-    crop_management_entries: Mapped[List["CropManagement"]] = relationship(
+    crop_management_entries: Mapped[list["CropManagement"]] = relationship(
         back_populates="crop_type"
     )
 
@@ -59,12 +61,12 @@ class Farms(Base):
     )
     
     # Relationships
-    devices: Mapped[List["Devices"]] = relationship(back_populates="farm")
-    access_entries: Mapped[List["FarmAccess"]] = relationship(back_populates="farm")
-    crop_management_entries: Mapped[List["CropManagement"]] = relationship(
+    devices: Mapped[list["Devices"]] = relationship(back_populates="farm")
+    access_entries: Mapped[list["FarmAccess"]] = relationship(back_populates="farm")
+    crop_management_entries: Mapped[list["CropManagement"]] = relationship(
         back_populates="farm"
     )
-    alerts: Mapped[List["Alerts"]] = relationship(back_populates="farm_rel")
+    alerts: Mapped[list["Alerts"]] = relationship(back_populates="farm_rel")
 
 
 class CropManagement(Base):
@@ -96,8 +98,8 @@ class Devices(Base):
     device_id: Mapped[str] = mapped_column(index=True, primary_key=True, default=generate_uuid)
     unique_device_id: Mapped[str] = mapped_column(index=True)
     device_ip_address: Mapped[str]
-    user_id: Mapped[Optional[str]] = mapped_column(index=True, nullable=True)
-    farm_id: Mapped[Optional[str]] = mapped_column(ForeignKey("farms.farm_id"), index=True, nullable=True)
+    user_id: Mapped[str | None] = mapped_column(index=True, nullable=True)
+    farm_id: Mapped[str | None] = mapped_column(ForeignKey("farms.farm_id"), index=True, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
@@ -110,9 +112,9 @@ class Devices(Base):
     
     # Relationships
     farm: Mapped[Optional["Farms"]] = relationship(back_populates="devices")
-    sensors: Mapped[List["Sensors"]] = relationship(back_populates="device")
-    actuators: Mapped[List["Actuators"]] = relationship(back_populates="device")
-    alerts: Mapped[List["Alerts"]] = relationship(back_populates="device_rel")
+    sensors: Mapped[list["Sensors"]] = relationship(back_populates="device")
+    actuators: Mapped[list["Actuators"]] = relationship(back_populates="device")
+    alerts: Mapped[list["Alerts"]] = relationship(back_populates="device_rel")
 
 
 class Actuators(Base):
@@ -122,14 +124,14 @@ class Actuators(Base):
     device_id: Mapped[str] = mapped_column(
         ForeignKey("devices.device_id"), index=True
     )
-    user_id: Mapped[Optional[str]] = mapped_column(index=True, nullable=True)
+    user_id: Mapped[str | None] = mapped_column(index=True, nullable=True)
     actuator_type: Mapped[str] = mapped_column(Text)
     current_state: Mapped[ActuatorState] = mapped_column(
         Enum(ActuatorState, name="actuator_state", create_type=True),
         default=ActuatorState.OFF,
     )
     available_states: Mapped[dict] = mapped_column(
-        JSON, nullable=False, default=lambda: {}
+        JSON, nullable=False, default=dict
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
@@ -140,7 +142,7 @@ class Actuators(Base):
 
     # Relationships
     device: Mapped["Devices"] = relationship(back_populates="actuators")
-    alerts: Mapped[List["Alerts"]] = relationship(back_populates="actuator_rel")
+    alerts: Mapped[list["Alerts"]] = relationship(back_populates="actuator_rel")
 
 
 class Sensors(Base):
@@ -150,7 +152,7 @@ class Sensors(Base):
     device_id: Mapped[str] = mapped_column(
         ForeignKey("devices.device_id"), index=True
     )
-    user_id: Mapped[Optional[str]] = mapped_column(index=True, nullable=True)
+    user_id: Mapped[str | None] = mapped_column(index=True, nullable=True)
     sensor_type: Mapped[str]
     units_of_measure: Mapped[str]
     max_value: Mapped[float]
@@ -171,15 +173,15 @@ class Alerts(Base):
     device_id: Mapped[str] = mapped_column(
         ForeignKey("devices.device_id"), index=True
     )
-    actuator_id: Mapped[Optional[str]] = mapped_column(
+    actuator_id: Mapped[str | None] = mapped_column(
         ForeignKey("actuators.actuator_id"), nullable=True
     )
     alert_type: Mapped[str]
     message: Mapped[str] = mapped_column(Text, nullable=False)
     triggered_by_rule_id: Mapped[str] = mapped_column(Text, nullable=False)
-    triggered_value: Mapped[Optional[float]] = mapped_column(nullable=True)
+    triggered_value: Mapped[float | None] = mapped_column(nullable=True)
     is_resolved: Mapped[bool] = mapped_column(default=False)
-    resolved_at: Mapped[Optional[datetime]] = mapped_column(
+    resolved_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
     created_at: Mapped[datetime] = mapped_column(

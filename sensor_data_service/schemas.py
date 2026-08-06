@@ -1,5 +1,5 @@
+
 from pydantic import BaseModel, Field
-from typing import List
 
 # --- Actuator Schemas (No changes needed) ---
 
@@ -9,7 +9,7 @@ class ActuatorControl(BaseModel):
 
 
 class ActuatorPayload(BaseModel):
-    actuators_to_control: List[ActuatorControl]
+    actuators_to_control: list[ActuatorControl]
 
 # --- Sensor Schemas (Modified) ---
 
@@ -31,4 +31,4 @@ class SensorDataBatch(BaseModel):
     The device_id is no longer included as it's not saved to the database.
     """
     # MODIFIED: Removed the device_id field
-    sensors: List[SensorReading] = Field(..., description="A list of sensor readings.")
+    sensors: list[SensorReading] = Field(..., description="A list of sensor readings.")

@@ -1,10 +1,17 @@
-from fastapi import APIRouter, status, Depends
-from user_service.schemas import UserRegister, UserLogin, TokenPair, RefreshRequest, UserResponse
+from fastapi import APIRouter, Depends, status
+
 from user_service.dependencies import (
+    AuthServiceDependency,
+    UserServiceDependency,
     db_dependency,
     get_token_payload,
-    UserServiceDependency,
-    AuthServiceDependency,
+)
+from user_service.schemas import (
+    RefreshRequest,
+    TokenPair,
+    UserLogin,
+    UserRegister,
+    UserResponse,
 )
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])

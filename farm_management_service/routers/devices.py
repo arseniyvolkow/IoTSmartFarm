@@ -1,15 +1,19 @@
-from fastapi import APIRouter, HTTPException, Query, Path, UploadFile, File, Request
-from typing import Optional
-import httpx
-import os
 import json
-import aiomqtt
-from starlette import status
-from farm_management_service.schemas import DeviceCreate, DevicePagination, DeviceRead
-from farm_management_service.services.actuators_service import ActuatorService
-from farm_management_service.services.sensor_service import SensorService
-from farm_management_service.dependencies import db_dependency, CurrentUserDependency, DeviceServiceDependency, FarmServiceDependency
+import os
 
+import aiomqtt
+from fastapi import APIRouter, File, HTTPException, Path, Query, Request, UploadFile
+from starlette import status
+
+from farm_management_service.dependencies import (
+    ActuatorServiceDependency,
+    CurrentUserDependency,
+    DeviceServiceDependency,
+    FarmServiceDependency,
+    SensorServiceDependency,
+    db_dependency,
+)
+from farm_management_service.schemas import DeviceCreate, DevicePagination, DeviceRead
 
 router = APIRouter(prefix="/devices", tags=["Devices"])
 
@@ -26,7 +30,7 @@ async def new_device(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"An unexpected error occurred: {str(e)}",
+            detail=f"An unexpected error occurred: {e!s}",
         )
 
 
@@ -37,9 +41,9 @@ async def new_device(
 )
 async def get_list_of_new_devices(
     device_service: DeviceServiceDependency,
-    sort_column: Optional[str] = None,
-    cursor: Optional[str] = Query(None),
-    limit: Optional[int] = Query(10, ge=10, le=200),
+    sort_column: str | None = None,
+    cursor: str | None = Query(None),
+    limit: int | None = Query(10, ge=10, le=200),
 ) -> DevicePagination:
     items, next_cursor = await device_service.get_unassigned_to_user_devices(
         sort_column, cursor, limit
@@ -55,9 +59,9 @@ async def get_list_of_new_devices(
 async def get_unassigned_sensor(
     current_user: CurrentUserDependency,
     device_service: DeviceServiceDependency,
-    sort_column: Optional[str] = None,
-    cursor: Optional[str] = Query(None),
-    limit: Optional[int] = Query(10, ge=10, le=200),
+    sort_column: str | None = None,
+    cursor: str | None = Query(None),
+    limit: int | None = Query(10, ge=10, le=200),
 ) -> DevicePagination:
     items, next_cursor = await device_service.get_unassigned_to_farm_devices(
         current_user.id, sort_column, cursor, limit
@@ -72,10 +76,10 @@ async def list_devices(
     current_user: CurrentUserDependency,
     device_service: DeviceServiceDependency,
     farm_service: FarmServiceDependency,
-    farm_id: Optional[str] = Query(None, max_length=100),
-    sort_column: Optional[str] = None,
-    cursor: Optional[str] = Query(None),
-    limit: Optional[int] = Query(10, ge=10, le=200),
+    farm_id: str | None = Query(None, max_length=100),
+    sort_column: str | None = None,
+    cursor: str | None = Query(None),
+    limit: int | None = Query(10, ge=10, le=200),
 ) -> DevicePagination:
     if farm_id:
         farm_entity = await farm_service.get(farm_id)
@@ -111,6 +115,8 @@ async def assign_user_to_device(
     db: db_dependency,
     current_user: CurrentUserDependency,
     device_service: DeviceServiceDependency,
+    sensor_service: SensorServiceDependency,
+    actuator_service: ActuatorServiceDependency,
     device_id: str = Query(max_length=100),
 ):
     device_entity = await device_service.get(device_id)
@@ -120,13 +126,11 @@ async def assign_user_to_device(
         await device_service.update(device_entity, user_id=current_user.id)
 
         # Update all sensors associated with this device (if sensors have user_id field)
-        sensor_service = SensorService(db)
         await sensor_service.assign_user_to_device_sensors(
             device_id, current_user.id
         )
 
         # Update all actuators associated with this device (if actuators have user_id field)
-        actuator_service = ActuatorService(db)
         await actuator_service.assign_user_to_device_actuators(
             device_id, current_user.id
         )
@@ -138,12 +142,12 @@ async def assign_user_to_device(
 async def update_device_info(
     current_user: CurrentUserDependency,
     device_service: DeviceServiceDependency,
-    new_status: str = Query(max_length=15, regex="^(active|inactive|maintenance)$"),
+    new_status: str = Query(max_length=15, pattern="^(active|inactive|maintenance)$"),
     device_id: str = Path(max_length=250),
 ):
     device_entity = await device_service.get(device_id)
     await device_service.check_access(device_entity, current_user)
-    await device_service.update(device_entity, status=new_status)
+    await device_service.update(device_entity, status=new_status.upper())
     return new_status
 
 

@@ -1,12 +1,13 @@
 import asyncio
+import json
 import logging
 import os
 import sys
+
 from sensor_data_service.database import Settings
-from sensor_data_service.services.redis_service import RedisService
 from sensor_data_service.services.Influxdb_service import InfluxDBService
 from sensor_data_service.services.mqtt_service import AsyncMQTTService
-import json
+from sensor_data_service.services.redis_service import RedisService
 
 # Clean production logging
 logging.basicConfig(
@@ -98,7 +99,7 @@ async def main():
         
         # Start in 'ingestion' mode
         await mqtt_service.start(mode="ingestion")
-        logger.info(f"Async MQTT Service started in INGESTION mode.")
+        logger.info("Async MQTT Service started in INGESTION mode.")
         
         # Start the actuator command bridge in the background
         bridge_task = asyncio.create_task(actuator_command_subscriber(redis_service, mqtt_service))

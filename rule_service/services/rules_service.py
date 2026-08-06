@@ -1,9 +1,11 @@
-from common.rule_models import Rules, RuleActions
-from typing import Optional
+
 from fastapi import HTTPException, status
-from rule_service.schemas import RuleCreate
+
+from common.models.rule_models import RuleActions, Rules
 from rule_service.repositories.rule_repository import RuleRepository
+from rule_service.schemas import RuleCreate
 from rule_service.services.rule_validator import RuleValidator
+
 
 class RulesService:
     def __init__(self, rule_repo: RuleRepository, rule_validator: RuleValidator):
@@ -30,7 +32,7 @@ class RulesService:
 
         # 3. Prepare and add RuleActions entities
         rule_actions = []
-        from common.rule_enums import RuleActionType
+        from common.models.rule_enums import RuleActionType
         
         for action_data in rule.actions:
             action_payload = action_data.action_payload.model_dump()
@@ -68,11 +70,11 @@ class RulesService:
         self,
         user_id: str,
         sort_column: str,
-        farm_id: Optional[str] = None,
-        sensor_id: Optional[str] = None,
-        trigger_type: Optional[str] = None,
-        cursor: Optional[str] = None,
-        limit: Optional[int] = 10,
+        farm_id: str | None = None,
+        sensor_id: str | None = None,
+        trigger_type: str | None = None,
+        cursor: str | None = None,
+        limit: int | None = 10,
     ):
         items, next_cursor = await self.rule_repo.get_all(
             user_id, sort_column, farm_id, sensor_id, trigger_type, cursor, limit

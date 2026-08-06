@@ -1,7 +1,11 @@
 import pytest
 from fastapi import status
+
+from common.auth.security import (
+    UserIdentity,
+    get_current_user_identity,
+)
 from user_service.main import app
-from common.security import get_token_payload, get_current_user_identity, UserIdentity
 
 # Mock payload that has full access to the "roles" resource
 ADMIN_PAYLOAD = {

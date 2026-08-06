@@ -1,11 +1,12 @@
-from farm_management_service.models import Actuators
-from typing import List, Optional, Union
-from farm_management_service.schemas import ActuatorRead, ActuatorBase
+
 from fastapi import HTTPException, status
-from farm_management_service.services.access_service import AccessService
-from farm_management_service.repositories.actuator_repository import ActuatorRepository
+
+from common.auth.schemas import CurrentUser
 from farm_management_service.enums import AccessLevel
-from common.schemas import CurrentUser
+from farm_management_service.models import Actuators
+from farm_management_service.repositories.actuator_repository import ActuatorRepository
+from farm_management_service.schemas import ActuatorBase, ActuatorRead
+from farm_management_service.services.access_service import AccessService
 
 
 class ActuatorService:
@@ -13,7 +14,7 @@ class ActuatorService:
         self.actuator_repo = actuator_repo
         self.access_service = access_service
 
-    async def check_access(self, entity, user: Union[CurrentUser, str], required_level: AccessLevel = AccessLevel.READ):
+    async def check_access(self, entity, user: CurrentUser | str, required_level: AccessLevel = AccessLevel.READ):
         user_id = user
         
         # 1. Check Global Permissions (RBAC Override)
@@ -44,7 +45,7 @@ class ActuatorService:
             status_code=status.HTTP_403_FORBIDDEN, detail="Access denied!"
         )
 
-    def add_actuators_to_session(self, device_id: str, actuators_list: List[ActuatorBase]):
+    def add_actuators_to_session(self, device_id: str, actuators_list: list[ActuatorBase]):
         self.actuator_repo.add_actuators_to_session(device_id, actuators_list)
 
     async def get(self, actuator_id: str) -> Actuators:
@@ -59,9 +60,9 @@ class ActuatorService:
         self,
         user_id: str,
         sort_column: str,
-        cursor: Optional[str] = None,
-        limit: Optional[int] = 10,
-    ) -> tuple[list[ActuatorRead], Optional[str]]:
+        cursor: str | None = None,
+        limit: int | None = 10,
+    ) -> tuple[list[ActuatorRead], str | None]:
         items, next_cursor = await self.actuator_repo.get_all_actuators(user_id, sort_column, cursor, limit)
         pydantic_items = [ActuatorRead.model_validate(item) for item in items]
         return pydantic_items, next_cursor

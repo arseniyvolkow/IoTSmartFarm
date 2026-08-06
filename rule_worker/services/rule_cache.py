@@ -1,19 +1,19 @@
 import asyncio
 import logging
-from typing import Dict, List, Optional
+
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload
-from sqlalchemy.ext.asyncio import AsyncSession
-from common.rule_models import Rules, RuleTriggerType
+
+from common.models.rule_models import Rules, RuleTriggerType
 from rule_worker.database import get_db
 
 logger = logging.getLogger(__name__)
 
 class RuleCache:
     def __init__(self):
-        self._sensor_rules: Dict[str, List[Rules]] = {}
-        self._time_rules: List[Rules] = []
-        self._all_rules: List[Rules] = []
+        self._sensor_rules: dict[str, list[Rules]] = {}
+        self._time_rules: list[Rules] = []
+        self._all_rules: list[Rules] = []
         self._lock = asyncio.Lock()
 
     async def reload_rules(self):
@@ -24,8 +24,8 @@ class RuleCache:
                 result = await db_session.execute(query)
                 rules = result.scalars().unique().all()
                 
-                sensor_rules: Dict[str, List[Rules]] = {}
-                time_rules: List[Rules] = []
+                sensor_rules: dict[str, list[Rules]] = {}
+                time_rules: list[Rules] = []
                 
                 for rule in rules:
                     if rule.trigger_type == RuleTriggerType.SENSOR_THRESHOLD and rule.sensor_id:
@@ -44,17 +44,17 @@ class RuleCache:
         except Exception as e:
             logger.error(f"❌ Failed to reload rule cache: {e}")
 
-    async def get_rules_for_sensor(self, sensor_id: str) -> List[Rules]:
+    async def get_rules_for_sensor(self, sensor_id: str) -> list[Rules]:
         """Get rules for a specific sensor from the cache."""
         async with self._lock:
             return self._sensor_rules.get(sensor_id, []).copy()
 
-    async def get_time_rules(self) -> List[Rules]:
+    async def get_time_rules(self) -> list[Rules]:
         """Get all time-based rules from the cache."""
         async with self._lock:
             return self._time_rules.copy()
             
-    async def get_all_rules(self, trigger_type: Optional[RuleTriggerType] = None) -> List[Rules]:
+    async def get_all_rules(self, trigger_type: RuleTriggerType | None = None) -> list[Rules]:
         """Get all active rules, optionally filtered by trigger type."""
         async with self._lock:
             if trigger_type == RuleTriggerType.SENSOR_THRESHOLD:

@@ -1,7 +1,9 @@
 import json
 import logging
-from typing import Dict, Any, Callable, Awaitable, Optional
-from common.rule_enums import RuleActionType
+from collections.abc import Awaitable, Callable
+from typing import Any
+
+from common.models.rule_enums import RuleActionType
 from rule_worker.services.redis_service import RedisService
 
 logger = logging.getLogger(__name__)
@@ -15,14 +17,14 @@ class ActionExecutor:
     def __init__(self, redis_service: RedisService):
         self.redis_service = redis_service
         
-        # Mapping RuleActionType (from common.rule_enums) to handler methods
-        self._handlers: Dict[str, Callable[[Dict[str, Any]], Awaitable[bool]]] = {
+        # Mapping RuleActionType (from common.models.rule_enums) to handler methods
+        self._handlers: dict[str, Callable[[dict[str, Any]], Awaitable[bool]]] = {
             RuleActionType.CONTROL_DEVICE.value: self._execute_device_control,
             RuleActionType.SEND_NOTIFICATION.value: self._execute_notification_placeholder,
             RuleActionType.LOG_EVENT.value: self._execute_log_message,
         }
 
-    async def execute(self, action_dict: Dict[str, Any], context: Dict[str, Any] = None) -> bool:
+    async def execute(self, action_dict: dict[str, Any], context: dict[str, Any] = None) -> bool:
         """
         Executes an action based on its type using the handler map.
         """
@@ -50,7 +52,7 @@ class ActionExecutor:
             logger.error(f"❌ Critical error executing action {action_id}: {e}", exc_info=True)
             return False
 
-    async def _execute_device_control(self, payload: Dict[str, Any]) -> bool:
+    async def _execute_device_control(self, payload: dict[str, Any]) -> bool:
         """
         Publishes an actuator command to Redis asynchronously.
         Expected payload in DB: {"actuators_to_control": [{"actuator_id": "...", "command": "..."}]}
@@ -72,14 +74,14 @@ class ActionExecutor:
             logger.error(f"❌ Error publishing device control command: {e}")
             return False
 
-    async def _execute_notification_placeholder(self, payload: Dict[str, Any]) -> bool:
+    async def _execute_notification_placeholder(self, payload: dict[str, Any]) -> bool:
         """
         Placeholder for sending notifications (e.g., Email, SMS, Push).
         """
         logger.info(f"🔔 [MOCK] Notification triggered with payload: {payload}")
         return True
 
-    async def _execute_log_message(self, payload: Dict[str, Any]) -> bool:
+    async def _execute_log_message(self, payload: dict[str, Any]) -> bool:
         """
         Internal logging action.
         """

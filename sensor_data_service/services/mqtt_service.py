@@ -1,8 +1,9 @@
 import asyncio
-import orjson
 import logging
-from typing import Optional, List, Dict, Any, Union
+from typing import Any
+
 import aiomqtt
+import orjson
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +38,7 @@ class AsyncMQTTService:
         self.influx_service = influx_service
         self.redis_service = redis_service
 
-        self.client: Optional[aiomqtt.Client] = None
+        self.client: aiomqtt.Client | None = None
         self._connected = False
         self._running = False
         self.mode = "all"
@@ -48,7 +49,7 @@ class AsyncMQTTService:
         self._incoming_queue = asyncio.Queue(maxsize=50000)
         
         # Internal tasks
-        self._tasks: List[asyncio.Task] = []
+        self._tasks: list[asyncio.Task] = []
         
         # BATCHING TUNING: Processing 500 messages at once maximizes DB write speed
         self._batch_size = 500
@@ -201,7 +202,7 @@ class AsyncMQTTService:
                 logger.error(f"Error in batch worker: {e}")
                 await asyncio.sleep(0.1)
 
-    async def _process_batch(self, batch: List[aiomqtt.Message]):
+    async def _process_batch(self, batch: list[aiomqtt.Message]):
         """
         HIGH-SPEED BATCH PROCESSOR
         --------------------------

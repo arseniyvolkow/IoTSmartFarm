@@ -1,8 +1,8 @@
 import logging
 from datetime import datetime, timezone
-from typing import Dict, Any, Optional
+from typing import Any
 
-from common.rule_models import Rules, RuleTriggerType
+from common.models.rule_models import Rules, RuleTriggerType
 from rule_worker.services.redis_service import RedisService
 
 logger = logging.getLogger(__name__)
@@ -11,7 +11,7 @@ class RuleContextBuilder:
     def __init__(self, redis_service: RedisService):
         self.redis_service = redis_service
 
-    async def build(self, rule: Rules, triggered_value: Optional[float] = None) -> Optional[Dict[str, Any]]:
+    async def build(self, rule: Rules, triggered_value: float | None = None) -> dict[str, Any] | None:
         """Prepare the context dictionary for rule evaluation."""
         now = datetime.now(timezone.utc)
         context = {

@@ -1,11 +1,12 @@
-from farm_management_service.models import Sensors
-from typing import List, Optional, Union
-from farm_management_service.schemas import SensorBase, SensorRead
+
 from fastapi import HTTPException, status
-from farm_management_service.services.access_service import AccessService
-from farm_management_service.repositories.sensor_repository import SensorRepository
+
+from common.auth.schemas import CurrentUser
 from farm_management_service.enums import AccessLevel
-from common.schemas import CurrentUser
+from farm_management_service.models import Sensors
+from farm_management_service.repositories.sensor_repository import SensorRepository
+from farm_management_service.schemas import SensorBase, SensorRead
+from farm_management_service.services.access_service import AccessService
 
 
 class SensorService:
@@ -13,7 +14,7 @@ class SensorService:
         self.sensor_repo = sensor_repo
         self.access_service = access_service
 
-    async def check_access(self, entity, user: Union[CurrentUser, str], required_level: AccessLevel = AccessLevel.READ):
+    async def check_access(self, entity, user: CurrentUser | str, required_level: AccessLevel = AccessLevel.READ):
         user_id = user
         
         # 1. Check Global Permissions (RBAC Override)
@@ -44,7 +45,7 @@ class SensorService:
             status_code=status.HTTP_403_FORBIDDEN, detail="Access denied!"
         )
 
-    def add_sensors_to_session(self, device_id: str, sensors_list: List[SensorBase]):
+    def add_sensors_to_session(self, device_id: str, sensors_list: list[SensorBase]):
         self.sensor_repo.add_sensors_to_session(device_id, sensors_list)
 
     async def get(self, sensor_id: str) -> Sensors:
@@ -59,9 +60,9 @@ class SensorService:
         self,
         user_id: str,
         sort_column: str,
-        cursor: Optional[str] = None,
-        limit: Optional[int] = 10,
-    ) -> tuple[list[SensorRead], Optional[str]]:
+        cursor: str | None = None,
+        limit: int | None = 10,
+    ) -> tuple[list[SensorRead], str | None]:
         items, next_cursor = await self.sensor_repo.get_all_sensors(user_id, sort_column, cursor, limit)
         pydantic_items = [SensorRead.model_validate(item) for item in items]
         return pydantic_items, next_cursor

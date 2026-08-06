@@ -1,15 +1,16 @@
-from fastapi import APIRouter, status, Depends
-from user_service.schemas import RoleResponse, RoleCreate, PermissionSet
+
+from fastapi import APIRouter, Depends, status
+
+from common.auth.security import CheckAccess
 from user_service.dependencies import RBACServiceDependency
-from common.security import CheckAccess
-from typing import List
+from user_service.schemas import PermissionSet, RoleCreate, RoleResponse
 
 router = APIRouter(prefix="/admin/roles", tags=["Admin"])
 
 
 @router.get(
     "/",
-    response_model=List[RoleResponse],
+    response_model=list[RoleResponse],
     dependencies=[Depends(CheckAccess("roles", "read"))],
 )
 async def get_all_roles(rbac_service: RBACServiceDependency):
@@ -73,4 +74,3 @@ async def get_role_details(role_name: str, rbac_service: RBACServiceDependency):
 async def delete_role(role_name: str, rbac_service: RBACServiceDependency):
     """Удалить роль."""
     await rbac_service.delete_role(role_name)
-    return None

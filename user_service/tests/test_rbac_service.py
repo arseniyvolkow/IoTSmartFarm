@@ -1,7 +1,8 @@
 import pytest
 from fastapi import HTTPException
+
 # Добавляем импорт User, чтобы SQLAlchemy видела все связанные модели
-from user_service.models import Role, RoleAccess, User
+from user_service.models import Role
 
 # Фикстуры db_session и rbac_service теперь приходят из conftest.py автоматически
 

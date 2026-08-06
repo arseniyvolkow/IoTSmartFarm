@@ -1,17 +1,22 @@
-from farm_management_service.repositories.base_repository import BaseRepository
-from farm_management_service.models import Devices, FarmAccess
-from farm_management_service.schemas import DeviceCreate
+
+from sqlalchemy import or_, select
 from sqlalchemy.orm import joinedload, selectinload
-from sqlalchemy import select, or_
-from typing import Optional
+
+from farm_management_service.models import Devices, FarmAccess
+from farm_management_service.repositories.base_repository import BaseRepository
+from farm_management_service.schemas import DeviceCreate
+
 
 class DeviceRepository(BaseRepository):
-    async def get_by_id(self, device_id: str) -> Optional[Devices]:
-        query = select(Devices).filter(Devices.device_id == device_id)
+    async def get_by_id(self, device_id: str) -> Devices | None:
+        query = select(Devices).filter(Devices.device_id == device_id).options(
+            selectinload(Devices.sensors),
+            selectinload(Devices.actuators)
+        )
         result = await self.db.execute(query)
         return result.scalar_one_or_none()
 
-    async def get_by_unique_id(self, unique_device_id: str) -> Optional[Devices]:
+    async def get_by_unique_id(self, unique_device_id: str) -> Devices | None:
         query = select(Devices).filter(Devices.unique_device_id == unique_device_id)
         result = await self.db.execute(query)
         return result.scalar_one_or_none()
@@ -25,7 +30,7 @@ class DeviceRepository(BaseRepository):
         )
         self.db.add(device_entity)
         await self.db.flush()
-        return device_entity
+        return await self.get_by_id(str(device_entity.device_id))
 
     async def get_device_id_by_unique_id(self, unique_device_id: str) -> str:
         query_device = select(Devices.device_id).filter(
@@ -43,7 +48,7 @@ class DeviceRepository(BaseRepository):
     async def refresh(self, entity):
         await self.db.refresh(entity)
 
-    async def get_unassigned_to_user_devices(self, sort_column: str, cursor: Optional[str] = None, limit: int = 10):
+    async def get_unassigned_to_user_devices(self, sort_column: str, cursor: str | None = None, limit: int = 10):
         query = (
             select(Devices)
             .filter(Devices.user_id.is_(None))
@@ -51,7 +56,7 @@ class DeviceRepository(BaseRepository):
         )
         return await self.cursor_paginate(self.db, query, sort_column, cursor, limit)
 
-    async def get_unassigned_to_farm_devices(self, user_id: str, sort_column: str, cursor: Optional[str] = None, limit: int = 10):
+    async def get_unassigned_to_farm_devices(self, user_id: str, sort_column: str, cursor: str | None = None, limit: int = 10):
         query = (
             select(Devices)
             .filter(Devices.user_id == user_id, Devices.farm_id.is_(None))
@@ -59,7 +64,7 @@ class DeviceRepository(BaseRepository):
         )
         return await self.cursor_paginate(self.db, query, sort_column, cursor, limit)
 
-    async def get_user_devices(self, user_id: str, sort_column: str, farm_id: Optional[str] = None, cursor: Optional[str] = None, limit: int = 10):
+    async def get_user_devices(self, user_id: str, sort_column: str, farm_id: str | None = None, cursor: str | None = None, limit: int = 10):
         query = select(Devices).options(
             selectinload(Devices.sensors), selectinload(Devices.actuators)
         )

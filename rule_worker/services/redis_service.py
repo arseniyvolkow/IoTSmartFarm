@@ -1,17 +1,18 @@
 import json
 import logging
-from typing import Optional, Dict, Any, Union
+from typing import Any
+
 import redis.asyncio as redis
 
 logger = logging.getLogger(__name__)
 
 class RedisService:
-    def __init__(self, host: str, port: int, db: int, password: Optional[str] = None):
+    def __init__(self, host: str, port: int, db: int, password: str | None = None):
         self._host = host
         self._port = port
         self._db = db
         self.password = password
-        self.client: Optional[redis.Redis] = None
+        self.client: redis.Redis | None = None
 
     async def connect(self):
         """Initialize Redis client and verify connection."""
@@ -46,7 +47,7 @@ class RedisService:
     def is_connected(self) -> bool:
         return self.client is not None
 
-    async def get(self, sensor_id: str) -> Optional[str]:
+    async def get(self, sensor_id: str) -> str | None:
         """
         Получает сырое значение сенсора по его ID.
         Автоматически добавляет префикс 'sensor:', чтобы соответствовать Sensor Service.
@@ -62,7 +63,7 @@ class RedisService:
             logger.error(f"Error getting value for key '{key}': {e}")
             return None
 
-    async def get_json(self, sensor_id: str) -> Optional[Union[Dict[str, Any], float, str]]:
+    async def get_json(self, sensor_id: str) -> dict[str, Any] | float | str | None:
         """
         Получает и автоматически парсит JSON значение сенсора.
         Возвращает dict, если это JSON, или сырое значение/None.

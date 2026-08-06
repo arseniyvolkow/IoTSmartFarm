@@ -1,15 +1,16 @@
 import asyncio
 import logging
 import os
+
 import httpx
 
 from rule_worker.database import get_db
-from rule_worker.services.redis_service import RedisService
 from rule_worker.services.action_executor import ActionExecutor
 from rule_worker.services.context_builder import RuleContextBuilder
 from rule_worker.services.evaluator import RuleEvaluator
-from rule_worker.services.stream_consumer import StreamConsumer
+from rule_worker.services.redis_service import RedisService
 from rule_worker.services.rule_cache import rule_cache
+from rule_worker.services.stream_consumer import StreamConsumer
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +41,7 @@ async def run_rule_worker_daemon(interval_seconds: int = 60):
     """
     Run the rule worker with both periodic and real-time evaluation.
     """
-    logger.info(f"🚀 Starting rule worker daemon")
+    logger.info("🚀 Starting rule worker daemon")
 
     redis_service = None
     http_client = None

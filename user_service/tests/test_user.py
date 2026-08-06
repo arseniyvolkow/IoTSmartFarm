@@ -1,9 +1,13 @@
 import pytest
 import pytest_asyncio
-from fastapi import status, HTTPException
-from user_service.main import app
+from fastapi import status
+
+from common.auth.security import (
+    UserIdentity,
+    get_current_user_identity,
+)
 from user_service.dependencies import get_current_user
-from common.security import get_token_payload, get_current_user_identity, UserIdentity
+from user_service.main import app
 from user_service.schemas import UserRegister
 
 # Test data aligned with schemas

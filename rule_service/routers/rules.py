@@ -1,8 +1,8 @@
-from fastapi import APIRouter, Query, Path, status
-from typing import Optional
-from rule_service.schemas import RuleCreate, RuleUpdate
-from rule_service.dependencies import CurrentUserDependency, RulesServiceDependency
 
+from fastapi import APIRouter, Path, Query, status
+
+from rule_service.dependencies import CurrentUserDependency, RulesServiceDependency
+from rule_service.schemas import RuleCreate, RuleUpdate
 
 router = APIRouter(prefix="/rules", tags=["Rules and Actions"])
 
@@ -32,12 +32,12 @@ async def get_rule_by_id(
 async def get_all_rules(
     rule_service: RulesServiceDependency,
     current_user: CurrentUserDependency,
-    sort_column: Optional[str] = None,
-    cursor: Optional[str] = Query(None),
-    limit: Optional[int] = Query(10, le=200),
-    farm_id: Optional[str] = None,
-    sensor_id: Optional[str] = None,
-    trigger_type: Optional[str] = None,
+    sort_column: str | None = None,
+    cursor: str | None = Query(None),
+    limit: int | None = Query(10, le=200),
+    farm_id: str | None = None,
+    sensor_id: str | None = None,
+    trigger_type: str | None = None,
 ):
     items, next_cursor = await rule_service.get_all(
         current_user.id, sort_column, farm_id, sensor_id, trigger_type, cursor, limit
@@ -54,7 +54,7 @@ async def update_rule(
 ):
     rule_entity = await rule_service.get(rule_id)
     await rule_service.check_access(rule_entity, current_user.id)
-    await rule_service.update(rule_entity, **rule.model_dump())
+    await rule_service.update(rule_entity, **rule.model_dump(exclude_unset=True))
     return {"details": f"Rule {rule_entity.rule_id} info was updated!"}
 
 
