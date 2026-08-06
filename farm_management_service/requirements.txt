@@ -15,3 +15,4 @@ redis==6.4.0
 python-multipart==0.0.20
 alembic==1.13.1
 aiomqtt==2.3.0
+aiofiles
